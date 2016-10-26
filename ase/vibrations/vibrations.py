@@ -88,7 +88,7 @@ class Vibrations:
 
     """
 
-    def __init__(self, atoms, indices=None, name='vib', delta=0.01, nfree=2):
+    def __init__(self, atoms, indices=None, name='vib', delta=0.01, nfree=2, vibdata=None):
         assert nfree in [2, 4]
         self.atoms = atoms
         if indices is None:
@@ -99,6 +99,23 @@ class Vibrations:
         self.nfree = nfree
         self.H = None
         self.ir = None
+        self.skip_read = False
+        if vibdata is not None:
+            self.set_vibdata(*vibdata)
+        
+        m = atoms.get_masses()
+        if 0 in [m[index] for index in self.indices]:
+            raise RuntimeError('Zero mass encountered in one or more of '
+                               'the vibrated atoms. Use Atoms.set_masses()'
+                               ' to set all masses to non-zero values.')
+        self.im = np.repeat(m[self.indices] ** -0.5, 3)
+
+    def set_vibdata(self, hnu, modes):
+      """Initialize with precalculated vibrational Eigenmodes and -vectors"""
+      
+      self.hnu = hnu
+      self.modes = modes
+      self.skip_read = True
 
     def run(self):
         """Run the vibration calculations.
