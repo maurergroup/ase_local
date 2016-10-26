@@ -844,6 +844,41 @@ class Atoms(object):
             self.set_array(name, a)
 
         return self
+    
+    def prepend(self, other):
+        """Extend atoms object by prepending atoms from *other*."""
+        if isinstance(other, Atom):
+            other = self.__class__([other])
+
+        n1 = len(self)
+        n2 = len(other)
+
+        for name, a1 in self.arrays.items():
+            a = np.zeros((n1 + n2,) + a1.shape[1:], a1.dtype)
+            a[n2:] = a1
+            if name == 'masses':
+                a2 = other.get_masses()
+            else:
+                a2 = other.arrays.get(name)
+            if a2 is not None:
+                a[:n2] = a2
+            self.arrays[name] = a
+
+        for name, a2 in other.arrays.items():
+            if name in self.arrays:
+                continue
+            a = np.empty((n1 + n2,) + a2.shape[1:], a2.dtype)
+            a[n2:] = a2
+            if name == 'masses':
+                a[n2:] = self.get_masses()[:n1]
+            else:
+                a[n2:] = 0
+
+            self.set_array(name, a)
+
+        return self
+
+    __iadd__ = extend
 
     __iadd__ = extend
 
