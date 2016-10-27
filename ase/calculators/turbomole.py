@@ -41,6 +41,8 @@ class Turbomole(Calculator):
     def initialize(self, atoms):
         self.numbers = atoms.get_atomic_numbers().copy()
         self.species = []
+        if not os.path.exists(self.label):
+            os.makedirs(self.label)
         for a, Z in enumerate(self.numbers):
             self.species.append(Z)
         self.converged = False
@@ -48,6 +50,8 @@ class Turbomole(Calculator):
     def execute(self, command):
         from subprocess import Popen, PIPE
         try:
+            pwd = os.getcwd()+'/'
+            os.chdir(self.label)
             # the sub process gets started here
             proc = Popen([command], shell=True, stderr=PIPE)
             error = proc.communicate()[1]
@@ -55,6 +59,7 @@ class Turbomole(Calculator):
             if 'abnormally' in error:
                 raise OSError(error)
             print('TM command: ', command, 'successfully executed')
+            os.chdir(pwd)
         except OSError as e:
             print('Execution failed:', e, file=sys.stderr)
             sys.exit(1)
@@ -68,7 +73,7 @@ class Turbomole(Calculator):
             # calculate energy
             self.execute(self.calculate_energy + ' > ASE.TM.energy.out')
             # check for convergence of dscf cycle
-            if os.path.isfile('dscf_problem'):
+            if os.path.isfile(self.label+'/dscf_problem'):
                 print('Turbomole scf energy calculation did not converge')
                 raise RuntimeError(
                     'Please run Turbomole define and come thereafter back')
@@ -88,7 +93,11 @@ class Turbomole(Calculator):
         # if update of forces is necessary
         if self.update_forces:
             # calculate forces
-            self.execute(self.calculate_forces + ' > ASE.TM.forces.out')
+            # calculate forces
+            if self.calculate_energy == 'uff':
+                pass
+            else:
+                self.execute(self.calculate_forces + ' > ASE.TM.forces.out')
             # read forces
             self.read_forces()
 
@@ -108,7 +117,9 @@ class Turbomole(Calculator):
             else:
                 return
         # performs an update of the atoms
-        write('coord', atoms)
+        if not os.path.exists(self.label):
+            os.makedirs(self.label)
+        write(self_label+'/coord', atoms)
         Calculator.set_atoms(self, atoms)
         # energy and forces must be re-calculated
         self.update_energy = True
@@ -116,8 +127,12 @@ class Turbomole(Calculator):
         
     def read_energy(self):
         """Read Energy from Turbomole energy file."""
-        text = open('energy', 'r').read().lower()
+        if self.calculate_energy == 'uff':
+            text = open(self.label+'/uffenergy', 'r').read().lower()
+        else:
+            text = open(self.label+'/energy', 'r').read().lower()
         lines = iter(text.split('\n'))
+        text = open('energy', 'r').read().lower()
 
         # Energy:
         for line in lines:
@@ -134,7 +149,10 @@ class Turbomole(Calculator):
 
     def read_forces(self):
         """Read Forces from Turbomole gradient file."""
-        file = open('gradient', 'r')
+        if self.calculate_forces == 'uff':
+            file = open(self.label+'/uffgradient', 'r')
+        else:
+            file = open(self.label+'/gradient', 'r')
         lines = file.readlines()
         file.close()
 
