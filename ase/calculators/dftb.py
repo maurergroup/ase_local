@@ -46,7 +46,7 @@ class Dftb(FileIOCalculator):
     else:
         command = 'dftb+ > PREFIX.out'
 
-    implemented_properties = ['energy', 'forces']
+    implemented_properties = ['energy', 'forces', 'stress']
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label='dftb', atoms=None, kpts=None,
@@ -115,6 +115,8 @@ class Dftb(FileIOCalculator):
         self.index_energy = None
         self.index_force_begin = None
         self.index_force_end = None
+        self.index_stress_begin = None
+        self.index_stress_end = None
 
     def write_dftb_in(self):
         """ Write the innput file for the dftb+ calculation.
@@ -196,9 +198,18 @@ class Dftb(FileIOCalculator):
                     self.index_force_end = iline + 1 + \
                         int(line1.split(',')[-1])
                     break
-
+            for iline, line in enumerate(self.lines):
+                fstring = 'stress   '
+                if line.find(fstring) >= 0:
+                    self.index_stress_begin = iline + 1
+                    line1 = line.replace(':',',')
+                    self.index_stress_end = iline + 1 + \
+                        int(line1.split(',')[-1])
+                    break
         self.read_energy()
         self.read_forces()
+        if self.index_stress_begin is not None:
+            self.read_stress()
         os.remove('results.tag')
             
     def read_energy(self):
@@ -226,3 +237,21 @@ class Dftb(FileIOCalculator):
 
         except:
             raise RuntimeError('Problem in reading forces')
+    
+    def read_stress(self):
+        """Read stress tensor from dftb output file (results.tag)."""
+        from ase.units import Hartree, Bohr
+
+        try:
+            stress = []
+            for j in range(self.index_stress_begin, self.index_stress_end):
+                word = self.lines[j].split()
+                stress.append([float(word[k]) for k in range(0, 3)])
+            stress = np.array(stress).flatten()
+
+            self.results['stress'] = -np.array([stress[0],stress[4],stress[8],\
+                                              stress[5],stress[2],stress[1]])\
+                                              * Hartree / Bohr
+
+        except:
+            raise RuntimeError('Problem in reading stress tensor')
