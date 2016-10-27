@@ -2375,3 +2375,65 @@ if __name__ == '__main__':
             print('Ooops, something went wrong with the CASTEP keywords')
         else:
             print('Import works. Looking good!')
+
+
+class DeltaSCFCastep(Castep):
+    """Variant of the CASTEP calculator for DeltaSCF calculations.
+
+    Additional options:
+        - gpmol_mask : list of boolean of length "nr of atoms"
+                       which is True iff the respective atom
+                       is part of the admolecule
+
+        - gpmol_seed : the seed that the calculation of the gas phase
+                       phase molecule
+    """
+    def __init__(self, gpmol_mask=None, gpmol_seed=None, gpmol_devcode=None,gpmol_reuse=True, *args, **kwargs):
+        Castep.__init__(self, *args, **kwargs)
+        if gpmol_mask is None:
+            raise UserWarning('Expected mask for gas phase molecule: gpmol_mask= ...')
+        else:
+            self.__dict__['gpmol_mask'] = gpmol_mask
+        for index in gpmol_mask:
+            if type(index) is not bool:
+                raise UserWarning('Expected list of booleans as mask')
+
+        self.__dict__['gpmol_seed'] = gpmol_seed
+        self.__dict__['gpmol_devcode'] = gpmol_devcode
+        self.__dict__['gpmol_reuse'] = gpmol_reuse
+
+    def calculate(self, atoms):
+        # create a copy
+        gpmol = deepcopy(atoms)
+        gpmol.set_constraint()
+        gpmol_mask = self.__dict__['gpmol_mask']
+
+        # first remove all atoms, that are not in the adsorbate molecule
+        if gpmol_mask:
+            del gpmol[[atom.index for (gp, atom) in zip(gpmol_mask, gpmol) if not gp]]
+
+        # set label
+        if self.__dict__['gpmol_seed'] and gpmol.calc._label !=  'None':
+            gpmol.calc._label = self.__dict__['gpmol_seed']
+        else:
+            gpmol.calc._label = '%s_gpmol' % atoms.calc._label
+
+        # make sure we only do a single-point calculation
+        gpmol.calc._track_output = False
+        gpmol.calc.param.task.clear()
+        gpmol.calc.devel_code=self.__dict__['gpmol_devcode']
+        if not self.__dict__['gpmol_reuse'] :
+            gpmol.calc.param.reuse.clear()
+        #gpmol.calc._set_atoms=True
+        # trigger gasphase molecule single-point calculation
+        gpmol.calc.prepare_input_files(gpmol)
+        gpmol.calc.run()
+        del gpmol
+        # energy calculation
+#        Castep.calculate(self,atoms)
+        self.prepare_input_files(atoms, force_write=self._force_write)
+        if not self._prepare_input_only:
+            self.run()
+            self.read()
+        #Castep.calculate(self,atoms)
+
