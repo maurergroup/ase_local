@@ -14,6 +14,8 @@ from ase.data import atomic_numbers
 from ase.calculators.calculator import FileIOCalculator, Parameters, kpts2mp, \
     ReadError
 
+#TODO include friction keywords
+#TODO make friction read work
 
 float_keys = [
     'charge',
@@ -30,6 +32,11 @@ float_keys = [
     'prec_mix_param',
     'set_vacuum_level',
     'spin_mix_param',
+    'force_occupation_smearing',
+    'mbd_supercell_cutoff',
+    'friction_numeric_disp',
+    'friction_broadening_width',
+    'friction_temperature',
 ]
 
 exp_keys = [
@@ -46,11 +53,13 @@ string_keys = [
     'communication_type',
     'density_update_method',
     'KS_method',
+    'RI_method',
     'mixer',
     'output_level',
     'packed_matrix_format',
     'relax_unit_cell',
     'restart',
+    'restart_aims',
     'restart_read_only',
     'restart_write_only',
     'spin',
@@ -58,7 +67,13 @@ string_keys = [
     'qpe_calc',
     'xc',
     'species_dir',
+    'force_occupation_projector',
+    'fo_dft',
+    'fo_options',
+    'fo_orbitals',
+    'fo_embedding',
     'run_command',
+    'calculate_friction',
 ]
 
 int_keys = [
@@ -70,6 +85,7 @@ int_keys = [
     'n_max_pulay',
     'sc_iter_limit',
     'walltime',
+    'sbtgrid_N',
 ]
 
 bool_keys = [
@@ -95,6 +111,7 @@ bool_keys = [
     'use_local_index',
     'use_logsbt',
     'vdw_correction_hirshfeld',
+    'many_body_dispersion',
 ]
 
 list_keys = [
@@ -111,12 +128,79 @@ list_keys = [
     'preconditioner',
     'relativistic',
     'relax_geometry',
+    'hirsh_volrat',
+    'friction_atoms',
 ]
+
+complete_keys = float_keys + \
+    exp_keys + \
+    string_keys + \
+    int_keys + \
+    bool_keys + \
+    list_keys
+
+# logical groups in keys for better input readability
+physical_model = [
+    'xc',
+    'spin',
+    'relativistic',
+    'charge',
+    'default_initial_moment',
+    'multiplicity',
+    'empty_states',
+]
+
+scf_convergence = [
+    'occupation_type',
+    'mixer',
+    'n_max_pulay',
+    'charge_mix_param',
+    'sc_accuracy_rho',
+    'sc_accuracy_eev',
+    'sc_accuracy_etot',
+    'sc_iter_limit',
+    'sc_accuracy_forces',
+    'relax_geometry',
+]
+
+periodic_bound = [
+    'k_grid',
+    'k_offset',
+    'relax_unit_cell',
+]
+
+output_options = [
+    'output',
+]
+
+fodft = [
+    'fo_dft',
+    'fo_options',
+    'fo_orbitals',
+    'fo_embedding',
+]
+
+# Put together all keys which are sorted in some way:
+grouped = physical_model + \
+    scf_convergence + \
+    periodic_bound + \
+    output_options + \
+    fodft
+
+# Get all keys which are not sorted and put them into "ungrouped".
+ungrouped = list(set(complete_keys) - set(grouped))
+grouping = {'0': physical_model,
+            '1': scf_convergence,
+            '2': periodic_bound,
+            '3': output_options,
+            '4': fodft,
+            '5': ungrouped}
 
 
 class Aims(FileIOCalculator):
     command = 'aims.version.serial.x > aims.out'
-    implemented_properties = ['energy', 'forces', 'stress', 'dipole', 'magmom']
+    implemented_properties = ['energy', 'forces', 'stress', 'dipole', \
+            'magmom','hirs_volrat','friction_tensor']
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, cubes=None, radmul=None,
@@ -184,7 +268,12 @@ class Aims(FileIOCalculator):
             raise RuntimeError('Found lattice vectors but no k-grid!')
         if not have_lattice_vectors and have_k_grid:
             raise RuntimeError('Found k-grid but no lattice vectors!')
-        write_aims(os.path.join(self.directory, 'geometry.in'), atoms, ghosts)
+        have_friction = ('friction_atoms' in self.parameters)
+        if not have_friction:
+            friction_atoms = []
+        else:
+            friction_atoms = self.parameters['friction_atoms']
+        write_aims(os.path.join(self.directory, 'geometry.in'), atoms, ghosts,friction_atoms)
         self.write_control(atoms, os.path.join(self.directory, 'control.in'))
         self.write_species(atoms, os.path.join(self.directory, 'control.in'))
         self.parameters.write(os.path.join(self.directory, 'parameters.ase'))
@@ -203,38 +292,48 @@ class Aims(FileIOCalculator):
         assert not ('smearing' in self.parameters and
                     'occupation_type' in self.parameters)
 
-        for key, value in self.parameters.items():
-            if key == 'kpts':
-                mp = kpts2mp(atoms, self.parameters.kpts)
-                output.write('%-35s%d %d %d\n' % (('k_grid',) + tuple(mp)))
-                dk = 0.5 - 0.5 / np.array(mp)
-                output.write('%-35s%f %f %f\n' % (('k_offset',) + tuple(dk)))
-            elif key == 'species_dir' or key == 'run_command':
-                continue
-            elif key == 'smearing':
-                name = self.parameters.smearing[0].lower()
-                if name == 'fermi-dirac':
-                    name = 'fermi'
-                width = self.parameters.smearing[1]
-                output.write('%-35s%s %f' % ('occupation_type', name, width))
-                if name == 'methfessel-paxton':
-                    order = self.parameters.smearing[2]
-                    output.write(' %d' % order)
-                output.write('\n' % order)
-            elif key == 'output':
-                for output_type in value:
-                    output.write('%-35s%s\n' % (key, output_type))
-            elif key == 'vdw_correction_hirshfeld' and value:
-                output.write('%-35s\n' % key)
-            elif key in bool_keys:
-                output.write('%-35s.%s.\n' % (key, repr(bool(value)).lower()))
-            elif isinstance(value, (tuple, list)):
-                output.write('%-35s%s\n' %
-                             (key, ' '.join(str(x) for x in value)))
-            elif isinstance(value, str):
-                output.write('%-35s%s\n' % (key, value))
-            else:
-                output.write('%-35s%r\n' % (key, value))
+        # Sort the keywords for the control.in according to the
+        # grouping-dictionary
+        for i_sort in range(len(grouping)):
+            output.write("#\n")
+            for key, value in self.parameters.items():
+                if key in grouping['{0}'.format(i_sort)]:
+                    if key == 'kpts':
+                        mp = kpts2mp(atoms, self.parameters.kpts)
+                        output.write('%-35s%d %d %d\n' % (('k_grid',) + 
+                                                            tuple(mp)))
+                        dk = 0.5 - 0.5 / np.array(mp)
+                        output.write('%-35s%f %f %f\n' % (('k_offset',) + 
+                                                            tuple(dk)))
+                    elif key == 'species_dir' or key == 'run_command':
+                        continue
+                    elif key == 'restart_aims':
+                        output.write('%-35s%s\n' % ('restart', value))
+                        continue
+                    elif key == 'smearing':
+                        name = self.parameters.smearing[0].lower()
+                        if name == 'fermi-dirac':
+                            name = 'fermi'
+                        width = self.parameters.smearing[1]
+                        output.write('%-35s%s %f' % ('occupation_type', name, width))
+                        if name == 'methfessel-paxton':
+                            order = self.parameters.smearing[2]
+                            output.write(' %d' % order)
+                        output.write('\n' % order)
+                    elif key == 'output':
+                        for output_type in value:
+                            output.write('%-35s%s\n' % (key, output_type))
+                    elif key == 'vdw_correction_hirshfeld' and value:
+                        output.write('%-35s\n' % key)
+                    elif key in bool_keys:
+                        output.write('%-35s.%s.\n' % (key, repr(bool(value)).lower()))
+                    elif isinstance(value, (tuple, list)):
+                        output.write('%-35s%s\n' %
+                                     (key, ' '.join(str(x) for x in value)))
+                    elif isinstance(value, str):
+                        output.write('%-35s%s\n' % (key, value))
+                    else:
+                        output.write('%-35s%r\n' % (key, value))
         if self.cubes:
             self.cubes.write(output)
         output.write(
@@ -263,6 +362,9 @@ class Aims(FileIOCalculator):
                                'The last lines of output are printed above ' +
                                'and should give an indication why.')
         self.read_energy()
+        if ('output') in self.parameters:
+            if ('hirshfeld') in self.parameters['output']:
+                self.get_hirsh_volrat()
         if ('compute_forces' in self.parameters or
             'sc_accuracy_forces' in self.parameters):
             self.read_forces()
@@ -272,6 +374,8 @@ class Aims(FileIOCalculator):
         if ('dipole' in self.parameters.get('output', []) and
             not self.atoms.pbc.any()):
             self.read_dipole()
+        if ('calculate_friction' in self.parameters):
+            self.read_friction_tensor()
 
     def write_species(self, atoms, filename='control.in'):
         self.ctrlname = filename
@@ -383,6 +487,13 @@ class Aims(FileIOCalculator):
             'sc_accuracy_forces' not in self.parameters):
             raise NotImplementedError
         return FileIOCalculator.get_forces(self, atoms)
+    
+    def get_hirsh_volrat(self):
+        atoms = self.atoms
+        if ('output' in self.parameters and
+           'hirshfeld' not in self.parameters['output']):
+                raise NotImplementedError
+        return FileIOCalculator.get_property(self, 'hirsh_volrat', atoms)
 
     def read_dipole(self):
         "Method that reads the electric dipole moment from the output file."
@@ -438,6 +549,21 @@ class Aims(FileIOCalculator):
             if line.rfind('Have a nice day') > -1:
                 converged = True
         return converged
+    
+    def read_hirsh_volrat(self):
+        infile = open(self.out, 'r')
+        lines = infile.readlines()
+        infile.close()
+        hirsh_volrat = []
+        for line in lines:
+            if ('Free atom volume ' in line):
+                v_free_tmp = float(line.split()[5])
+            elif ('Hirshfeld volume ' in line):
+                v_hirsh_tmp = float(line.split()[4])
+                hirsh_volrat.append(v_hirsh_tmp / v_free_tmp)
+
+        # Save in internal variable
+        self.results['hirsh_volrat'] = hirsh_volrat
 
     def get_number_of_iterations(self):
         return self.read_number_of_iterations()
@@ -500,6 +626,9 @@ class Aims(FileIOCalculator):
 
     def get_magnetic_moment(self, atoms=None):
         return self.read_magnetic_moment()
+
+    def get_friction_tensor(self):
+        return self.read_friction_tensor():
 
     def read_number_of_spins(self):
         spinpol = None
@@ -622,6 +751,40 @@ class Aims(FileIOCalculator):
             values = None
         return np.array(values)
 
+    def read_friction_tensor(self):
+        """
+        reads output of calculate_friction from file friction_tensor.out
+        """
+        lines = open('friction_tensor.out', 'r').readlines()
+        from ase.units import s
+        ps = s*1.E-12
+        nlines = len(lines)-1
+        natoms = len(self.atoms)
+        ndim = nlines/2
+        friction_tensor = np.zeros([ndim,ndim],dtype=np.float)
+        friction_index = np.zeros(3*natoms,dtype=np.int)
+        friction_index[:] = -1
+        iline = 1
+        for n in range(ndim):
+            #collect index of atom
+            line = lines[iline].split()
+            iatom = int(line[2])-1 
+            icart = int(line[4])-1
+            friction_index[iatom*3+icart] = n
+            iline += 1
+            line = lines[iline].split()
+            friction_tensor[n,:] = [float(value) for value in line]
+            iline += 1
+        #now we have the calculated friction tensor elements and 
+        #need to embedd them into the full system tensor
+        friction_tensor_full = np.zeros([3*natoms,3*natoms],dtype=np.float)
+        for i in range(3*natoms):
+            for j in range(3*natoms):
+                if (friction_index[i]>=0 and friction_index[j]>=0):
+                friction_tensor_full[i,j] = \
+                        friction_tensor[friction_index[i],friction_index[j]] 
+        #return friction tensor in 1/ASE time units
+        self.results['friction_tensor'] = friction_tensor_full/ps 
 
 class AimsCube:
     "Object to ensure the output of cube files, can be attached to Aims object"

@@ -93,7 +93,7 @@ def read_aims(filename):
     return atoms
 
 
-def write_aims(filename, atoms, ghosts=None):
+def write_aims(filename, atoms, ghosts=None, friction_atoms=None):
     """Method to write FHI-aims geometry files.
 
     Writes the atoms positions and constraints (only FixAtoms is
@@ -135,6 +135,8 @@ def write_aims(filename, atoms, ghosts=None):
         ghosts = np.zeros(len(atoms))
     else:
         assert len(ghosts) == len(atoms)
+    if friction_atoms is None:
+        friction_atoms = []
     for i, atom in enumerate(atoms):
         if ghosts[i] == 1:
             atomstring = 'empty '
@@ -158,6 +160,8 @@ def write_aims(filename, atoms, ghosts=None):
             fd.write('initial_charge %16.6f\n' % atom.charge)
         if atom.magmom:
             fd.write('initial_moment %16.6f\n' % atom.magmom)
+        if i in friction_atoms:
+            fd.write('calculate_friction .true.\n')
 # except KeyError:
 #     continue
 
