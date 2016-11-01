@@ -75,19 +75,19 @@ class MDEF(MolecularDynamics):
         self.c1 = np.exp(-self.frict*dt/2.)
         self.c2 = np.sqrt((1.-self.c1*self.c1)*self.masses_long*(kB*self.temp))
 
-    def momentum_step(p,dt,f,fnew):
+    def momentum_step(self,p,dt,f,fnew):
         return p+((f+fnew)/2.)*dt
 
-    def position_step(r,dt,p,m,f):
+    def position_step(self,r,dt,p,m,f):
         return r+p/m*dt+f/m*(dt*dt/2.)
 
-    def friction_step(p,rand):
+    def friction_step(self,p,rand):
         return self.c1*p+self.c2*rand
 
     def step(self, f):
         #Bussi Parinello step with tensor transformation
         dt = self.dt
-
+        f = f
         atoms = self.atoms
         p = self.atoms.get_momenta().flatten()
         r = self.atoms.get_positions().flatten()
@@ -100,13 +100,13 @@ class MDEF(MolecularDynamics):
         p = np.dot(self.fric_vecs,p)
         
         #position update 
-        r = self.position_step(r,dt,p,self.masses_long,f)
-        atoms.set_positions(r.reshape([-1,3])
-        fold = copy(f)
+        r = self.position_step(r,dt,p,self.masses_long,f.flatten())
+        atoms.set_positions(r.reshape([-1,3]))
+        fold = f.copy()
         #force update
-        f = atoms.get_forces() 
+        f = atoms.get_forces()
         #momentum update
-        p = self.momentum_step(p,dt,fold,f)
+        p = self.momentum_step(p,dt,fold.flatten(),f.flatten())
        
         self.random = standard_normal(size=(3*len(atoms)))
         #transform into friction mode space
