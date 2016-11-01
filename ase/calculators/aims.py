@@ -14,8 +14,6 @@ from ase.data import atomic_numbers
 from ase.calculators.calculator import FileIOCalculator, Parameters, kpts2mp, \
     ReadError
 
-#TODO include friction keywords
-#TODO make friction read work
 
 float_keys = [
     'charge',
@@ -200,7 +198,7 @@ grouping = {'0': physical_model,
 class Aims(FileIOCalculator):
     command = 'aims.version.serial.x > aims.out'
     implemented_properties = ['energy', 'forces', 'stress', 'dipole', \
-            'magmom','hirs_volrat','friction_tensor']
+            'magmom','hirsh_volrat','friction']
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, cubes=None, radmul=None,
@@ -306,6 +304,8 @@ class Aims(FileIOCalculator):
                         output.write('%-35s%f %f %f\n' % (('k_offset',) + 
                                                             tuple(dk)))
                     elif key == 'species_dir' or key == 'run_command':
+                        continue
+                    elif key == 'friction_atoms':
                         continue
                     elif key == 'restart_aims':
                         output.write('%-35s%s\n' % ('restart', value))
@@ -433,6 +433,8 @@ class Aims(FileIOCalculator):
                     self.foundtarget = True
                 elif current_tier > self.targettier:
                     self.do_uncomment = False
+                    if self.targettier==0:
+                        self.foundtarget = True
             else:
                 self.do_uncomment = False
             return line
@@ -488,12 +490,16 @@ class Aims(FileIOCalculator):
             raise NotImplementedError
         return FileIOCalculator.get_forces(self, atoms)
     
-    def get_hirsh_volrat(self):
-        atoms = self.atoms
+    def get_hirsh_volrat(self,atoms):
         if ('output' in self.parameters and
            'hirshfeld' not in self.parameters['output']):
                 raise NotImplementedError
         return FileIOCalculator.get_property(self, 'hirsh_volrat', atoms)
+    
+    def get_friction_tensor(self,atoms):
+        if ('calculate_friction' not in self.parameters):
+                raise NotImplementedError
+        return FileIOCalculator.get_property(self, 'friction', atoms)
 
     def read_dipole(self):
         "Method that reads the electric dipole moment from the output file."
@@ -626,9 +632,6 @@ class Aims(FileIOCalculator):
 
     def get_magnetic_moment(self, atoms=None):
         return self.read_magnetic_moment()
-
-    def get_friction_tensor(self):
-        return self.read_friction_tensor():
 
     def read_number_of_spins(self):
         spinpol = None
@@ -781,10 +784,10 @@ class Aims(FileIOCalculator):
         for i in range(3*natoms):
             for j in range(3*natoms):
                 if (friction_index[i]>=0 and friction_index[j]>=0):
-                friction_tensor_full[i,j] = \
+                    friction_tensor_full[i,j] = \
                         friction_tensor[friction_index[i],friction_index[j]] 
         #return friction tensor in 1/ASE time units
-        self.results['friction_tensor'] = friction_tensor_full/ps 
+        self.results['friction'] = friction_tensor_full/ps 
 
 class AimsCube:
     "Object to ensure the output of cube files, can be attached to Aims object"
