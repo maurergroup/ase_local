@@ -6,7 +6,7 @@ import numpy as np
 from numpy.random import standard_normal
 from ase.md.md import MolecularDynamics
 from ase.parallel import world
-from numpy.linalg import eigh
+from numpy.linalg import eigh, svd
 from copy import copy
 from ase.units import kB
 
@@ -59,7 +59,10 @@ class MDEF(MolecularDynamics):
         self.updatevars()
 
     def set_friction(self, friction):
-        self.frict, self.fric_vecs= eigh(friction)
+        #self.frict, self.fric_vecs= eigh(friction)
+        self.fric_vecs, self.frict, _= svd(friction)
+        print self.fric_vecs[:6,:6], self.frict[:6]
+        #self.frict= np.diag(friction)
         #TODO we might need to check if friction is zero
         # if any([ for f in self.frict])
         # self.frict = friction
@@ -73,6 +76,7 @@ class MDEF(MolecularDynamics):
         dt = self.dt
         self.masses_long = self.masses.repeat(3)
         self.c1 = np.exp(-self.frict*dt/2.)
+        #self.c2 = np.sqrt((1.-self.c1*self.c1)*np.dot(self.fric_vecs.transpose(),self.masses_long)*(kB*self.temp))
         self.c2 = np.sqrt((1.-self.c1*self.c1)*self.masses_long*(kB*self.temp))
 
     def momentum_step(self,p,dt,f,fnew):
@@ -83,6 +87,9 @@ class MDEF(MolecularDynamics):
 
     def friction_step(self,p,rand):
         return self.c1*p+self.c2*rand
+    
+    #def friction_step2(self,v,dt,f,m,,rand):
+        #return v + 0.5* 
 
     def step(self, f):
         #Bussi Parinello step with tensor transformation
@@ -90,8 +97,11 @@ class MDEF(MolecularDynamics):
         f = f
         atoms = self.atoms
         p = self.atoms.get_momenta().flatten()
+        #v = self.atoms.get_velocities().flatten()
+        #m = self.masses
         r = self.atoms.get_positions().flatten()
 
+        self.random = standard_normal(size=(3*len(atoms)))
         #transform into friction mode space
         p = np.dot(self.fric_vecs.transpose(),p)
         #first friction step

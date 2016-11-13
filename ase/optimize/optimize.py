@@ -52,7 +52,7 @@ class Dynamics:
 
         if trajectory is not None:
             if isinstance(trajectory, str):
-                trajectory = Trajectory(trajectory, mode='w',
+                trajectory = Trajectory(trajectory, mode='a',
                                         atoms=atoms, master=master)
             self.attach(trajectory)
 
