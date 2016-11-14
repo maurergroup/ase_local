@@ -84,6 +84,7 @@ int_keys = [
     'sc_iter_limit',
     'walltime',
     'sbtgrid_N',
+    'friction_iter_limit',
 ]
 
 bool_keys = [
