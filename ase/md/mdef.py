@@ -59,12 +59,8 @@ class MDEF(MolecularDynamics):
         self.updatevars()
 
     def set_friction(self, friction):
-        #self.frict, self.fric_vecs= eigh(friction)
-        self.fric_vecs, self.frict, _= svd(friction)
-        print self.fric_vecs[:6,:6], self.frict[:6]
-        #self.frict= np.diag(friction)
+        self.frict, self.fric_vecs= eigh(friction)
         #TODO we might need to check if friction is zero
-        # if any([ for f in self.frict])
         # self.frict = friction
         self.updatevars()
 
@@ -76,8 +72,7 @@ class MDEF(MolecularDynamics):
         dt = self.dt
         self.masses_long = self.masses.repeat(3)
         self.c1 = np.exp(-self.frict*dt/2.)
-        #self.c2 = np.sqrt((1.-self.c1*self.c1)*np.dot(self.fric_vecs.transpose(),self.masses_long)*(kB*self.temp))
-        self.c2 = np.sqrt((1.-self.c1*self.c1)*self.masses_long*(kB*self.temp))
+        self.c2 = np.sqrt(1.-self.c1*self.c1)
 
     def momentum_step(self,p,dt,f,fnew):
         return p+((f+fnew)/2.)*dt
@@ -86,8 +81,11 @@ class MDEF(MolecularDynamics):
         return r+p/m*dt+f/m*(dt*dt/2.)
 
     def friction_step(self,p,rand):
-        return self.c1*p+self.c2*rand
-    
+        pnew = np.dot(self.fric_vecs,(self.c1*np.dot(self.fric_vecs.transpose(),p)))
+        rrand = np.sqrt(self.masses_long*kB*self.temp)*rand
+        pnew2 = np.dot(self.fric_vecs,(self.c2*np.dot(self.fric_vecs.transpose(),rrand)))
+        return pnew + pnew2
+
     #def friction_step2(self,v,dt,f,m,,rand):
         #return v + 0.5* 
 
@@ -102,12 +100,8 @@ class MDEF(MolecularDynamics):
         r = self.atoms.get_positions().flatten()
 
         self.random = standard_normal(size=(3*len(atoms)))
-        #transform into friction mode space
-        p = np.dot(self.fric_vecs.transpose(),p)
         #first friction step
         p = self.friction_step(p,self.random)
-        #transform pack into normal space
-        p = np.dot(self.fric_vecs,p)
         
         #position update 
         r = self.position_step(r,dt,p,self.masses_long,f.flatten())
@@ -119,12 +113,8 @@ class MDEF(MolecularDynamics):
         p = self.momentum_step(p,dt,fold.flatten(),f.flatten())
        
         self.random = standard_normal(size=(3*len(atoms)))
-        #transform into friction mode space
-        p = np.dot(self.fric_vecs.transpose(),p)
         #second friction step
         p = self.friction_step(p,self.random)
-        #transform pack into normal space
-        p = np.dot(self.fric_vecs,p)
 
         atoms.set_momenta(p.reshape([-1,3]))
         return f
