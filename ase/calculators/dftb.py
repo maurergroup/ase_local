@@ -51,6 +51,7 @@ class Dftb(FileIOCalculator):
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label='dftb', atoms=None, kpts=None,
                  run_manyDftb_steps = False,
+                 calculate_forces=True,
                  **kwargs):
         """Construct a DFTB+ calculator.
         """
@@ -75,16 +76,25 @@ class Dftb(FileIOCalculator):
                 )
         else:
             #using ase to get forces and energy only (single point calculation)
-            self.default_parameters = dict(
-                Hamiltonian_='DFTB',
-                Driver_='ConjugateGradient',
-                Driver_MaxForceComponent='1E-4',
-                Driver_MaxSteps=0,
-                Hamiltonian_SlaterKosterFiles_='Type2FileNames',
-                Hamiltonian_SlaterKosterFiles_Prefix=slako_dir,
-                Hamiltonian_SlaterKosterFiles_Separator='"-"',
-                Hamiltonian_SlaterKosterFiles_Suffix='".skf"'
-            )
+            if calculate_forces:
+                self.default_parameters = dict(
+                    Hamiltonian_='DFTB',
+                    Driver_='ConjugateGradient',
+                    Driver_MaxForceComponent='1E-4',
+                    Driver_MaxSteps=0,
+                    Hamiltonian_SlaterKosterFiles_='Type2FileNames',
+                    Hamiltonian_SlaterKosterFiles_Prefix=slako_dir,
+                    Hamiltonian_SlaterKosterFiles_Separator='"-"',
+                    Hamiltonian_SlaterKosterFiles_Suffix='".skf"'
+                )
+            else:
+                self.default_parameters = dict(
+                    Hamiltonian_='DFTB',
+                    Hamiltonian_SlaterKosterFiles_='Type2FileNames',
+                    Hamiltonian_SlaterKosterFiles_Prefix=slako_dir,
+                    Hamiltonian_SlaterKosterFiles_Separator='"-"',
+                    Hamiltonian_SlaterKosterFiles_Suffix='".skf"'
+                )
 
 
         FileIOCalculator.__init__(self, restart, ignore_bad_restart_file,
@@ -117,6 +127,8 @@ class Dftb(FileIOCalculator):
         self.index_force_end = None
         self.index_stress_begin = None
         self.index_stress_end = None
+
+        self.calculate_forces = calculate_forces
 
     def write_dftb_in(self):
         """ Write the innput file for the dftb+ calculation.
@@ -207,7 +219,8 @@ class Dftb(FileIOCalculator):
                         int(line1.split(',')[-1])
                     break
         self.read_energy()
-        self.read_forces()
+        if self.calculate_forces:
+            self.read_forces()
         if self.index_stress_begin is not None:
             self.read_stress()
         os.remove('results.tag')
