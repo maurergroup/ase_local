@@ -106,7 +106,7 @@ def connect(name, type='extract_from_name', create_indices=True,
             type = None
         elif not isinstance(name, basestring):
             type = 'json'
-        elif name.startswith('pg://'):
+        elif name.startswith('postgresql://'):
             type = 'postgresql'
         else:
             type = os.path.splitext(name)[1][1:]
@@ -126,7 +126,7 @@ def connect(name, type='extract_from_name', create_indices=True,
                                serial=serial)
     if type == 'postgresql':
         from ase.db.postgresql import PostgreSQLDatabase
-        return PostgreSQLDatabase(name[5:])
+        return PostgreSQLDatabase(name)
     raise ValueError('Unknown database type: ' + type)
 
 
@@ -142,13 +142,16 @@ def lock(method):
     return new_method
 
 
-def convert_str_to_float_or_str(value):
+def convert_str_to_int_float_or_str(value):
     """Safe eval()"""
     try:
-        value = float(value)
+        return int(value)
     except ValueError:
-        value = {'True': 1.0, 'False': 0.0}.get(value, value)
-    return value
+        try:
+            value = float(value)
+        except ValueError:
+            value = {'True': True, 'False': False}.get(value, value)
+        return value
 
 
 class Database:
@@ -162,15 +165,16 @@ class Database:
             to interact with the database on the master only and then
             distribute results to all slaves.
         """
-        if isinstance(filename, str):
+        if isinstance(filename, basestring):
             filename = os.path.expanduser(filename)
         self.filename = filename
         self.create_indices = create_indices
-        if use_lock_file and isinstance(filename, str):
+        if use_lock_file and isinstance(filename, basestring):
             self.lock = Lock(filename + '.lock', world=DummyMPI())
         else:
             self.lock = None
         self.serial = serial
+        self._metadata = None  # decription of columns and other stuff
 
     @parallel_function
     @lock
@@ -333,7 +337,8 @@ class Database:
                 op = invop[op]
                 value = now() - time_string_to_float(value)
             elif key == 'formula':
-                assert op == '='
+                if op != '=':
+                    raise ValueError('Use fomula=...')
                 numbers = symbols2numbers(value)
                 count = collections.defaultdict(int)
                 for Z in numbers:
@@ -345,7 +350,7 @@ class Database:
                 key = atomic_numbers[key]
                 value = int(value)
             elif isinstance(value, basestring):
-                value = convert_str_to_float_or_str(value)
+                value = convert_str_to_int_float_or_str(value)
             if key in numeric_keys and not isinstance(value, (int, float)):
                 msg = 'Wrong type for "{0}{1}{2}" - must be a number'
                 raise ValueError(msg.format(key, op, value))

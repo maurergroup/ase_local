@@ -12,7 +12,8 @@ from ase.units import Hartree
 from ase.io.aims import write_aims, read_aims
 from ase.data import atomic_numbers
 from ase.calculators.calculator import FileIOCalculator, Parameters, kpts2mp, \
-    ReadError
+    ReadError, PropertyNotImplementedError
+from ase.utils import basestring
 
 
 float_keys = [
@@ -291,50 +292,43 @@ class Aims(FileIOCalculator):
         assert not ('smearing' in self.parameters and
                     'occupation_type' in self.parameters)
 
-        # Sort the keywords for the control.in according to the
-        # grouping-dictionary
-        for i_sort in range(len(grouping)):
-            output.write("#\n")
-            for key, value in self.parameters.items():
-                if key in grouping['{0}'.format(i_sort)]:
-                    if key == 'kpts':
-                        mp = kpts2mp(atoms, self.parameters.kpts)
-                        output.write('%-35s%d %d %d\n' % (('k_grid',) + 
-                                                            tuple(mp)))
-                        dk = 0.5 - 0.5 / np.array(mp)
-                        output.write('%-35s%f %f %f\n' % (('k_offset',) + 
-                                                            tuple(dk)))
-                    elif key == 'species_dir' or key == 'run_command':
-                        continue
-                    elif key == 'friction_atoms':
-                        continue
-                    elif key == 'restart_aims':
-                        output.write('%-35s%s\n' % ('restart', value))
-                        continue
-                    elif key == 'smearing':
-                        name = self.parameters.smearing[0].lower()
-                        if name == 'fermi-dirac':
-                            name = 'fermi'
-                        width = self.parameters.smearing[1]
-                        output.write('%-35s%s %f' % ('occupation_type', name, width))
-                        if name == 'methfessel-paxton':
-                            order = self.parameters.smearing[2]
-                            output.write(' %d' % order)
-                        output.write('\n' % order)
-                    elif key == 'output':
-                        for output_type in value:
-                            output.write('%-35s%s\n' % (key, output_type))
-                    elif key == 'vdw_correction_hirshfeld' and value:
-                        output.write('%-35s\n' % key)
-                    elif key in bool_keys:
-                        output.write('%-35s.%s.\n' % (key, repr(bool(value)).lower()))
-                    elif isinstance(value, (tuple, list)):
-                        output.write('%-35s%s\n' %
-                                     (key, ' '.join(str(x) for x in value)))
-                    elif isinstance(value, str):
-                        output.write('%-35s%s\n' % (key, value))
-                    else:
-                        output.write('%-35s%r\n' % (key, value))
+        for key, value in self.parameters.items():
+            if key == 'kpts':
+                mp = kpts2mp(atoms, self.parameters.kpts)
+                output.write('%-35s%d %d %d\n' % (('k_grid',) + tuple(mp)))
+                dk = 0.5 - 0.5 / np.array(mp)
+                output.write('%-35s%f %f %f\n' % (('k_offset',) + tuple(dk)))
+            elif key == 'species_dir' or key == 'run_command':
+                continue
+            elif key == 'friction_atoms':
+                continue
+            elif key == 'restart_aims':
+                output.write('%-35s%s\n' % ('restart', value))
+                continue
+            elif key == 'smearing':
+                name = self.parameters.smearing[0].lower()
+                if name == 'fermi-dirac':
+                    name = 'fermi'
+                width = self.parameters.smearing[1]
+                output.write('%-35s%s %f' % ('occupation_type', name, width))
+                if name == 'methfessel-paxton':
+                    order = self.parameters.smearing[2]
+                    output.write(' %d' % order)
+                output.write('\n' % order)
+            elif key == 'output':
+                for output_type in value:
+                    output.write('%-35s%s\n' % (key, output_type))
+            elif key == 'vdw_correction_hirshfeld' and value:
+                output.write('%-35s\n' % key)
+            elif key in bool_keys:
+                output.write('%-35s.%s.\n' % (key, repr(bool(value)).lower()))
+            elif isinstance(value, (tuple, list)):
+                output.write('%-35s%s\n' %
+                             (key, ' '.join(str(x) for x in value)))
+            elif isinstance(value, basestring):
+                output.write('%-35s%s\n' % (key, value))
+            else:
+                output.write('%-35s%r\n' % (key, value))
         if self.cubes:
             self.cubes.write(output)
         output.write(
@@ -476,19 +470,19 @@ class Aims(FileIOCalculator):
     def get_dipole_moment(self, atoms):
         if ('dipole' not in self.parameters.get('output', []) or
             atoms.pbc.any()):
-            raise NotImplementedError
+            raise PropertyNotImplementedError
         return FileIOCalculator.get_dipole_moment(self, atoms)
 
     def get_stress(self, atoms):
         if ('compute_numerical_stress' not in self.parameters and
             'compute_analytical_stress' not in self.parameters):
-            raise NotImplementedError
+            raise PropertyNotImplementedError
         return FileIOCalculator.get_stress(self, atoms)
 
     def get_forces(self, atoms):
         if ('compute_forces' not in self.parameters and
             'sc_accuracy_forces' not in self.parameters):
-            raise NotImplementedError
+            raise PropertyNotImplementedError
         return FileIOCalculator.get_forces(self, atoms)
     
     def get_hirsh_volrat(self,atoms):
