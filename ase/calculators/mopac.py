@@ -17,7 +17,7 @@ from ase.units import kcal, mol
 
 class MOPAC(FileIOCalculator):
     implemented_properties = ['energy', 'forces']
-    command = 'mopac PREFIX.mop 2> /dev/null'
+    command = 'mopac mopac.mop 2> /dev/null'
 
     default_parameters = dict(
         method='PM7',
@@ -54,7 +54,10 @@ class MOPAC(FileIOCalculator):
         if magmom:
             s += (['DOUBLET', 'TRIPLET', 'QUARTET', 'QUINTET'][magmom - 1] +
                   ' UHF ')
-            
+           
+        if p.vectors:
+            s += ' '+p.vectors+' '
+
         s += '\nTitle: ASE calculation\n\n'
 
         # Write coordinates:

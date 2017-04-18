@@ -1098,7 +1098,7 @@ class StrainFilter(Filter):
 
 class UnitCellFilter(Filter):
     """Modify the supercell and the atom positions. """
-    def __init__(self, atoms, mask=None, weight=1.):
+    def __init__(self, atoms, mask=None, weight=1., pressure=0.0):
         """Create a filter that returns the atomic forces and unit cell
         stresses together, so they can simultaneously be minimized.
 
@@ -1141,6 +1141,10 @@ class UnitCellFilter(Filter):
 
         self.atoms = atoms
         self.strain = np.zeros(6)
+
+        #Pressure is given in GPa has to be converted to eV/A^3
+        self.extpressure = pressure / 160.21766208
+        self.pressure = 0.0
 
         if mask is None:
             self.mask = np.ones(6)
@@ -1224,13 +1228,42 @@ class UnitCellFilter(Filter):
         all_forces = np.zeros((natoms + 2, 3), np.float)
         all_forces[0:natoms, :] = atom_forces
 
-        stress_forces = -((stress * self.mask).reshape((2, 3)) *
+        derivCellVol = np.zeros([3,3])
+        cell = self.atoms.get_cell()
+        derivCellVol[0,0] = cell[1,1]*cell[2,2]-cell[2,1]*cell[1,2]
+        derivCellVol[0,1] = cell[1,2]*cell[2,0]-cell[2,2]*cell[1,0]
+        derivCellVol[0,2] = cell[1,0]*cell[2,1]-cell[2,0]*cell[1,1]
+        derivCellVol[1,0] = cell[0,2]*cell[2,1]-cell[0,1]*cell[2,2]
+        derivCellVol[1,1] = cell[0,0]*cell[2,2]-cell[0,2]*cell[2,1]
+        derivCellVol[1,2] = cell[0,1]*cell[2,0]-cell[0,0]*cell[2,1]
+        derivCellVol[2,0] = cell[0,1]*cell[1,2]-cell[0,2]*cell[1,1]
+        derivCellVol[2,1] = cell[0,2]*cell[1,0]-cell[0,0]*cell[1,2]
+        derivCellVol[2,2] = cell[0,0]*cell[1,1]-cell[0,1]*cell[1,0]
+        derivCellVol = derivCellVol * np.sign(np.linalg.det(derivCellVol))
+
+        derivCellVol[:,:] = self.extpressure*derivCellVol[:,:]
+        cellVolStress = np.dot(derivCellVol,cell)/self.atoms.get_volume()
+        stress2 = np.array([
+            cellVolStress[0,0],
+            cellVolStress[1,1],
+            cellVolStress[2,2],
+            cellVolStress[1,2],
+            cellVolStress[0,2],
+            cellVolStress[0,1],
+            ])
+        self.stress = stress + stress2 
+
+        stress_forces = -((self.stress * self.mask).reshape((2, 3)) *
                           self.stress_renorm)
         all_forces[natoms:, :] = stress_forces * self.weight
         return all_forces
 
     def get_potential_energy(self):
-        return self.atoms.get_potential_energy()
+        self.pressure = (self.stress[0]+self.stress[1]+self.stress[2])/3.0
+        # print self.pressure
+        # print self.atoms.get_volume()
+        return self.atoms.get_potential_energy() +\
+                (self.pressure)*self.atoms.get_volume()
 
     def has(self, x):
         return self.atoms.has(x)

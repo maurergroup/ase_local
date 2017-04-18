@@ -49,7 +49,7 @@ class ext_CPA_wrapper:
                 tmp2 = f.readlines()[2:]
             for iline, line in enumerate(tmp2):
                 if 'Internal wall clock time zero' in line:
-                    ntaskline = tmp2[iline+2]
+                    ntaskline = tmp2[iline+5]
                     assert(('Using' in ntaskline) and ('parallel tasks.' in ntaskline))
                     self.nFiles = int(ntaskline.split()[1])
                 elif '  The eigenvectors in the calculations are' in line:
@@ -100,8 +100,9 @@ class ext_CPA_wrapper:
         return (approximate) rescaling ratios for effective atomic
         polarizabilities as obtained by charge population approach.
         """
-        
-        a_div_a0 = np.array( CPA.get_APT(self.nFiles, self.nk, self.nOrbs, self.nAtoms, \
+       
+
+        a_div_a0 = np.array( CPA.get_apt(self.nFiles, self.nk, self.nOrbs, self.nAtoms, \
                                          self.Orb2Atom, self.wk, self.pbc, self.evectype) )
         
         a_div_a0 /= self.ZAtoms
