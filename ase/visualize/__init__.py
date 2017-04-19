@@ -16,9 +16,9 @@ def view(atoms, data=None, viewer='ase', repeat=None, block=False):
     if vwr == 'ase':
         format = 'traj'
         if repeat is None:
-            command = 'ase gui'
+            command = 'ase-gui'
         else:
-            command = 'ase gui --repeat=%d,%d,%d' % tuple(repeat)
+            command = 'ase-gui --repeat=%d,%d,%d' % tuple(repeat)
             repeat = None
     elif vwr == 'vmd':
         format = 'cube'
