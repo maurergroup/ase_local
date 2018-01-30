@@ -9,6 +9,11 @@ license <license info>`.
 
 .. _Python: http://www.python.org
 
+ASE provides interfaces to different codes through :mod:`Calculators
+<ase.calculators>` which are used together with the central
+:mod:`Atoms <ase.atoms>` object and the many available algorithms in
+ASE.
+
 >>> # Example: structure optimization of hydrogen molecule
 >>> from ase import Atoms
 >>> from ase.optimize import BFGS
@@ -28,6 +33,26 @@ BFGS:   3  19:10:51    -31.492848     0.0023
 >>> h2.get_potential_energy()
 -31.492847800329216
 
+Supported :mod:`Calculators <ase.calculators>`:
+
+|abinit| |Asap| |Atomistica| |CASTEP| |CP2K| |CRYSTAL| |deMon| |dftb|
+|elk| |exciting| |EMT|
+|fhi-aims| |fleur| |gpaw| |gromacs|
+|hotbit| |jacapo| |jdftx| |lammps| |nwchem|
+|octopus| |onetep| |q_espresso| |siesta| |turbomole| |vasp|
+:mod:`~ase.calculators.amber`
+:mod:`DMol³ <ase.calculators.dmol>`
+Gaussian_
+:mod:`Grimme DFT-D3 <ase.calculators.dftd3>`
+:mod:`~ase.calculators.gulp`
+Mopac_
+:mod:`~ase.calculators.tip3p`
+:mod:`~ase.calculators.qmmm`
+
+
+`Reference publication on ASE <https://doi.org/10.1088/1361-648X/aa680e>`__
+
+
 Please go through this check-list to figure out if you need to convert your
 old ASE trajectory files to the modern file-format:
 
@@ -37,26 +62,26 @@ old ASE trajectory files to the modern file-format:
 See how to identify and convert old trajectory files here: :ref:`convert`.
 
 
-Supported :mod:`Calculators <ase.calculators>`:
-
-|abinit| |Asap| |Atomistica| |CASTEP| |CP2K| |deMon| |dftb|
-|elk| |exciting| |EMT|
-|fhi-aims| |fleur| |gpaw| |gromacs| |hotbit| |jacapo| |jdftx| |lammps| |nwchem|
-|octopus| |onetep| |siesta| |turbomole| |vasp|
-:mod:`~ase.calculators.amber`
-:mod:`DMol³ <ase.calculators.dmol>`
-Gaussian_ Grimme-D3_ Mopac_
-:mod:`~ase.calculators.tip3p`
-
-
 .. _news:
 
 News
 ====
 
+* :ref:`ASE version 3.15.0 <releasenotes>` released (28 September 2017).
+
+* Bugfix release: :ref:`ASE version 3.14.1 <releasenotes>` (28 June 2017).
+
+* :ref:`ASE version 3.14.0 <releasenotes>` released (20 June 2017).
+
+* :ref:`Reference paper <cite>` in
+  J. Phys. Condens. Matter:
+  `The Atomic Simulation Environment | A Python library for working with
+  atoms <https://doi.org/10.1088/1361-648X/aa680e>`__
+  (7 June 2017).
+
 * :ref:`ASE version 3.13.0 <releasenotes>` released (7 February 2017).
 
-* Psi-k *Scientifc Highlight Of The Month*:
+* Psi-k *Scientific Highlight Of The Month*:
   `The Atomic Simulation Environment | A Python library for working with
   atoms <http://psi-k.net/download/highlights/Highlight_134.pdf>`__
   (20 January 2017).
@@ -67,7 +92,7 @@ News
 
 * :ref:`ASE version 3.10.0 <releasenotes>` released (17 March 2016).
 
-* Web-page now use the `Read the Docs Sphinx Theme
+* Web-page now uses the `Read the Docs Sphinx Theme
   <https://github.com/snide/sphinx_rtd_theme>`_ (20 February 2016).
 
 * The source code is now on https://gitlab.com/ase/ase (18 September 2015).
@@ -99,7 +124,7 @@ News
 * :ref:`ASE version 3.1.0 <download_and_install>` released (27 March 2009).
 
 * Improved :mod:`ase.vibrations` module: More accurate and
-  possibility to calculate :mod:`infrared intensities <ase.infrared>` (13
+  possibility to calculate :ref:`infrared` (13
   March 2009).
 
 * :ref:`ASE version 3.0.0 <download_and_install>` released (13 November 2008).
@@ -150,8 +175,11 @@ Contents
 .. |CP2K| image:: static/cp2k.png
    :target: ase/calculators/cp2k.html
    :align: middle
+.. |CRYSTAL| image:: static/crystal.png
+   :target: ase/calculators/crystal.html
+   :align: middle
 .. |deMon| image:: static/demon.png
-   :target: http://www.demon-software.com/public_html/index.html
+   :target: ase/calculators/demon.html
    :align: middle
 .. |elk| image:: static/elk.png
    :target: http://elk.sourceforge.net/
@@ -175,16 +203,16 @@ Contents
    :target: http://wiki.fysik.dtu.dk/gpaw
    :align: middle
 .. |gromacs| image:: static/gromacs.png
-   :target: http://www.gromacs.org/
+   :target: ase/calculators/gromacs.html
    :align: middle
 .. |hotbit| image:: static/hotbit.png
-   :target: https://trac.cc.jyu.fi/projects/hotbit
+   :target: https://github.com/pekkosk/hotbit
    :align: middle
 .. |jacapo| image:: static/jacapo.png
    :target: ase/calculators/jacapo.html
    :align: middle
 .. |jdftx| image:: static/jdftx.png
-   :target: http://sourceforge.net/p/jdftx/wiki/ASE%20Interface
+   :target: http://jdftx.org/ASE.html
    :align: middle
 .. |lammps| image:: static/lammps.png
    :target: ase/calculators/lammps.html
@@ -198,6 +226,10 @@ Contents
 .. |onetep| image:: static/onetep.png
    :target: http://www.onetep.org/
    :align: middle
+.. |q_espresso| image:: static/espresso.png
+   :target: ase/calculators/espresso.html
+   :align: middle
+   :scale: 50
 .. |siesta| image:: static/siesta.png
    :target: ase/calculators/siesta.html
    :align: middle
@@ -210,8 +242,7 @@ Contents
 
 
 .. _Gaussian: http://www.gaussian.com/
-.. _Mopac: http://openmopac.net/
-.. _Grimme-D3: https://gitlab.com/ehermes/ased3/tree/master
+.. _Mopac: ase/calculators/mopac.html
 .. _Sphinx: http://sphinx.pocoo.org
 .. _Asap: http://wiki.fysik.dtu.dk/asap
 .. _CAMd: http://www.camd.dtu.dk

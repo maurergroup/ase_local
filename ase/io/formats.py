@@ -31,13 +31,20 @@ import os
 import sys
 
 from ase.atoms import Atoms
-from ase.utils import import_module, basestring
+from ase.utils import import_module, basestring, PurePath
 from ase.parallel import parallel_function, parallel_generator
 
-IOFormat = collections.namedtuple('IOFormat', 'read, write, single, acceptsfd')
+
+class UnknownFileTypeError(Exception):
+    pass
+
+
+IOFormat = collections.namedtuple('IOFormat',
+                                  'read, write, single, acceptsfd, isbinary')
 ioformats = {}  # will be filled at run-time
 
-# 1=single, +=multiple, F=accepts a file-descriptor, S=needs a file-name str
+# 1=single, +=multiple, F=accepts a file-descriptor, S=needs a file-name str,
+# B=like F, but opens in binary mode
 all_formats = {
     'abinit': ('ABINIT input file', '1F'),
     'aims': ('FHI-aims geometry file', '1S'),
@@ -51,11 +58,13 @@ all_formats = {
     'cfg': ('AtomEye configuration', '1F'),
     'cif': ('CIF-file', '+F'),
     'cmdft': ('CMDFT-file', '1F'),
+    'crystal': ('Crystal fort.34 format', '1S'),
     'cube': ('CUBE file', '1F'),
     'dacapo': ('Dacapo netCDF output file', '1F'),
     'dacapo-text': ('Dacapo text output', '1F'),
     'db': ('ASE SQLite database file', '+S'),
     'dftb': ('DftbPlus input file', '1S'),
+    'dlp4': ('DL_POLY_4 CONFIG file', '1F'),
     'dmol-arc': ('DMol3 arc file', '+S'),
     'dmol-car': ('DMol3 structure file', '1S'),
     'dmol-incoor': ('DMol3 structure file', '1S'),
@@ -75,14 +84,16 @@ all_formats = {
     'gpw': ('GPAW restart-file', '1S'),
     'gromacs': ('Gromacs coordinates', '1S'),
     'gromos': ('Gromos96 geometry file', '1F'),
-    'html': ('X3DOM HTML', '1S'),
+    'html': ('X3DOM HTML', '1F'),
     'iwm': ('?', '1F'),
-    'json': ('ASE JSON database file', '+S'),
+    'json': ('ASE JSON database file', '+F'),
     'jsv': ('JSV file format', '1F'),
     'lammps-dump': ('LAMMPS dump file', '+F'),
     'lammps-data': ('LAMMPS data file', '1F'),
-    'magres': ('MAGRES ab initio NMR data file', '1S'),
+    'magres': ('MAGRES ab initio NMR data file', '1F'),
     'mol': ('MDL Molfile', '1F'),
+    'mustem': ('muSTEM xtl file', '1F'),
+    'netcdftrajectory': ('AMBER NetCDF trajectory file', '+S'),
     'nwchem': ('NWChem input file', '1F'),
     'octopus': ('Octopus input file', '1F'),
     'proteindatabank': ('Protein Data Bank', '+F'),
@@ -90,11 +101,12 @@ all_formats = {
     'postgresql': ('ASE PostgreSQL database file', '+S'),
     'pov': ('Persistance of Vision', '1S'),
     'py': ('Python file', '+F'),
+    'qbox': ('QBOX output file', '+F'),
     'res': ('SHELX format', '1S'),
     'sdf': ('SDF format', '1F'),
     'struct': ('WIEN2k structure file', '1S'),
     'struct_out': ('SIESTA STRUCT file', '1F'),
-    'traj': ('ASE trajectory', '+S'),
+    'traj': ('ASE trajectory', '+B'),
     'trj': ('Old ASE pickle trajectory', '+S'),
     'turbomole': ('TURBOMOLE coord file', '1F'),
     'turbomole-gradient': ('TURBOMOLE gradient file', '+F'),
@@ -122,6 +134,7 @@ format2modulename = {
     'castep-md': 'castep',
     'castep-phonon': 'castep',
     'dacapo-text': 'dacapo',
+    'dlp4': 'dlp4',
     'espresso-in': 'espresso',
     'espresso-out': 'espresso',
     'gaussian-out': 'gaussian',
@@ -148,7 +161,10 @@ extension2format = {
     'cell': 'castep-cell',
     'com': 'gaussian',
     'con': 'eon',
+    'config': 'dlp4',
     'exi': 'exciting',
+    'f34': 'crystal',
+    '34': 'crystal',
     'g96': 'gromos',
     'geom': 'castep-geom',
     'gro': 'gromacs',
@@ -156,11 +172,19 @@ extension2format = {
     'md': 'castep-md',
     'nw': 'nwchem',
     'out': 'espresso-out',
+    'pwo': 'espresso-out',
+    'pwi': 'espresso-in',
     'pdb': 'proteindatabank',
     'shelx': 'res',
     'in': 'aims',
     'poscar': 'vasp',
-    'phonon': 'castep-phonon'}
+    'phonon': 'castep-phonon',
+    'xtl': 'mustem'}
+
+netcdfconventions2format = {
+    'http://www.etsf.eu/fileformats': 'etsf',
+    'AMBER': 'netcdftrajectory'
+}
 
 
 def initialize(format):
@@ -186,14 +210,121 @@ def initialize(format):
         raise ValueError('File format not recognized: ' + format)
     code = all_formats[format][1]
     single = code[0] == '1'
-    acceptsfd = code[1] == 'F'
-    ioformats[format] = IOFormat(read, write, single, acceptsfd)
+    assert code[1] in 'BFS'
+    acceptsfd = code[1] != 'S'
+    isbinary = code[1] == 'B'
+    ioformats[format] = IOFormat(read, write, single, acceptsfd, isbinary)
 
 
 def get_ioformat(format):
     """Initialize and return IOFormat tuple."""
     initialize(format)
     return ioformats[format]
+
+
+def get_compression(filename):
+    """
+    Parse any expected file compression from the extension of a filename.
+    Return the filename without the extension, and the extension. Recognises
+    ``.gz``, ``.bz2``, ``.xz``.
+
+    >>> get_compression('H2O.pdb.gz')
+    ('H2O.pdb', 'gz')
+    >>> get_compression('crystal.cif')
+    ('crystal.cif', None)
+
+    Parameters
+    ==========
+    filename: str
+        Full filename including extension.
+
+    Returns
+    =======
+    (root, extension): (str, str or None)
+        Filename split into root without extension, and the extension
+        indicating compression format. Will not split if compression
+        is not recognised.
+    """
+    # Update if anything is added
+    valid_compression = ['gz', 'bz2', 'xz']
+
+    # Use stdlib as it handles most edge cases
+    root, compression = os.path.splitext(filename)
+
+    # extension keeps the '.' so remember to remove it
+    if compression.strip('.') in valid_compression:
+        return root, compression.strip('.')
+    else:
+        return filename, None
+
+
+def open_with_compression(filename, mode='r'):
+    """
+    Wrapper around builtin `open` that will guess compression of a file
+    from the filename and open it for reading or writing as if it were
+    a standard file.
+
+    Implemented for ``gz``(gzip), ``bz2``(bzip2) and ``xz``(lzma). Either
+    Python 3 or the ``backports.lzma`` module are required for ``xz``.
+
+    Supported modes are:
+       * 'r', 'rt', 'w', 'wt' for text mode read and write.
+       * 'rb, 'wb' for binary read and write.
+    Depending on the Python version, you may get errors trying to write the
+    wrong string type to the file.
+
+    Parameters
+    ==========
+    filename: str
+        Path to the file to open, including any extensions that indicate
+        the compression used.
+    mode: str
+        Mode to open the file, same as for builtin ``open``, e.g 'r', 'w'.
+
+    Returns
+    =======
+    fd: file
+        File-like object open with the specified mode.
+    """
+
+    if sys.version_info[0] > 2:
+        # Compressed formats sometimes default to binary, so force
+        # text mode in Python 3.
+        if mode == 'r':
+            mode = 'rt'
+        elif mode == 'w':
+            mode = 'wt'
+    else:
+        # The version of gzip in Anaconda Python 2 on Windows forcibly
+        # adds a 'b', so strip any 't' and let the string conversions
+        # be carried out implicitly by Python.
+        mode = mode.strip('t')
+
+    root, compression = get_compression(filename)
+
+    if compression is None:
+        return open(filename, mode)
+    elif compression == 'gz':
+        import gzip
+        fd = gzip.open(filename, mode=mode)
+    elif compression == 'bz2':
+        import bz2
+        if hasattr(bz2, 'open'):
+            # Python 3 only
+            fd = bz2.open(filename, mode=mode)
+        else:
+            # Python 2
+            fd = bz2.BZ2File(filename, mode=mode)
+    elif compression == 'xz':
+        try:
+            from lzma import open as lzma_open
+        except ImportError:
+            from backports.lzma import open as lzma_open
+        fd = lzma_open(filename, mode)
+    else:
+        fd = open(filename, mode)
+
+    return fd
 
 
 def wrap_read_function(read, filename, index=None, **kwargs):
@@ -205,7 +336,7 @@ def wrap_read_function(read, filename, index=None, **kwargs):
             yield atoms
 
 
-def write(filename, images, format=None, **kwargs):
+def write(filename, images, format=None, parallel=True, **kwargs):
     """Write Atoms object(s) to file.
 
     filename: str or file
@@ -216,6 +347,9 @@ def write(filename, images, format=None, **kwargs):
     format: str
         Used to specify the file-format.  If not given, the
         file-format will be taken from suffix of the filename.
+    parallel: bool
+        Default is to write on master only.  Use parallel=False to write
+        from all slaves.
 
     The use of additional keywords is format specific."""
 
@@ -235,22 +369,22 @@ def write(filename, images, format=None, **kwargs):
 
     io = get_ioformat(format)
 
-    _write(filename, fd, format, io, images, **kwargs)
+    _write(filename, fd, format, io, images, parallel=parallel, **kwargs)
 
 
 @parallel_function
-def _write(filename, fd, format, io, images, **kwargs):
+def _write(filename, fd, format, io, images, parallel=None, **kwargs):
     if isinstance(images, Atoms):
         images = [images]
 
     if io.single:
         if len(images) > 1:
-            raise ValueError('{0}-format can only store 1 Atoms object.'
+            raise ValueError('{}-format can only store 1 Atoms object.'
                              .format(format))
         images = images[0]
 
     if io.write is None:
-        raise ValueError("Can't write to {0}-format".format(format))
+        raise ValueError("Can't write to {}-format".format(format))
 
     # Special case for json-format:
     if format == 'json' and len(images) > 1:
@@ -263,18 +397,19 @@ def _write(filename, fd, format, io, images, **kwargs):
     if io.acceptsfd:
         open_new = (fd is None)
         if open_new:
-            fd = open(filename, 'w')
+            mode = 'wb' if io.isbinary else 'w'
+            fd = open_with_compression(filename, mode)
         io.write(fd, images, **kwargs)
         if open_new:
             fd.close()
     else:
         if fd is not None:
-            raise ValueError("Can't write {0}-format to file-descriptor"
+            raise ValueError("Can't write {}-format to file-descriptor"
                              .format(format))
         io.write(filename, images, **kwargs)
 
 
-def read(filename, index=None, format=None, **kwargs):
+def read(filename, index=None, format=None, parallel=True, **kwargs):
     """Read Atoms object(s) from file.
 
     filename: str or file
@@ -291,11 +426,16 @@ def read(filename, index=None, format=None, **kwargs):
     format: str
         Used to specify the file-format.  If not given, the
         file-format will be guessed by the *filetype* function.
+    parallel: bool
+        Default is to read on master and broadcast to slaves.  Use
+        parallel=False to read on all slaves.
 
     Many formats allow on open file-like object to be passed instead
     of ``filename``. In this case the format cannot be auto-decected,
     so the ``format`` argument should be explicitly given."""
 
+    if isinstance(filename, PurePath):
+        filename = str(filename)
     if isinstance(index, basestring):
         index = string2index(index)
     filename, index = parse_filename(filename, index)
@@ -304,12 +444,14 @@ def read(filename, index=None, format=None, **kwargs):
     format = format or filetype(filename)
     io = get_ioformat(format)
     if isinstance(index, (slice, basestring)):
-        return list(_iread(filename, index, format, io, **kwargs))
+        return list(_iread(filename, index, format, io, parallel=parallel,
+                           **kwargs))
     else:
-        return next(_iread(filename, slice(index, None), format, io, **kwargs))
+        return next(_iread(filename, slice(index, None), format, io,
+                           parallel=parallel, **kwargs))
 
 
-def iread(filename, index=None, format=None, **kwargs):
+def iread(filename, index=None, format=None, parallel=True, **kwargs):
     """Iterator for reading Atoms objects from file.
 
     Works as the `read` function, but yields one Atoms object at a time
@@ -329,24 +471,19 @@ def iread(filename, index=None, format=None, **kwargs):
     format = format or filetype(filename)
     io = get_ioformat(format)
 
-    for atoms in _iread(filename, index, format, io, **kwargs):
+    for atoms in _iread(filename, index, format, io, parallel=parallel,
+                        **kwargs):
         yield atoms
 
 
 @parallel_generator
-def _iread(filename, index, format, io, full_output=False, **kwargs):
-    compression = None
+def _iread(filename, index, format, io, parallel=None, full_output=False,
+           **kwargs):
     if isinstance(filename, basestring):
         filename = os.path.expanduser(filename)
-        if filename.endswith('.gz'):
-            compression = 'gz'
-            filename = filename[:-3]
-        elif filename.endswith('.bz2'):
-            compression = 'bz2'
-            filename = filename[:-4]
 
     if not io.read:
-        raise ValueError("Can't read from {0}-format".format(format))
+        raise ValueError("Can't read from {}-format".format(format))
 
     if io.single:
         start = index.start
@@ -358,14 +495,8 @@ def _iread(filename, index, format, io, full_output=False, **kwargs):
     must_close_fd = False
     if isinstance(filename, basestring):
         if io.acceptsfd:
-            if compression == 'gz':
-                import gzip
-                fd = gzip.open(filename + '.gz')
-            elif compression == 'bz2':
-                import bz2
-                fd = bz2.BZ2File(filename + '.bz2')
-            else:
-                fd = open(filename, 'rU')
+            mode = 'rb' if io.isbinary else 'r'
+            fd = open_with_compression(filename, mode)
             must_close_fd = True
         else:
             fd = filename
@@ -417,7 +548,7 @@ def string2index(string):
     return slice(*i)
 
 
-def filetype(filename, read=True):
+def filetype(filename, read=True, guess=True):
     """Try to guess the type of the file.
 
     First, special signatures in the filename will be checked for.  If that
@@ -427,7 +558,7 @@ def filetype(filename, read=True):
 
     Can be used from the command-line also::
 
-        $ python -m ase.io.formats filename ...
+        $ ase info filename ...
     """
 
     ext = None
@@ -440,13 +571,15 @@ def filetype(filename, read=True):
         if filename.startswith('pg://'):
             return 'postgresql'
 
-        basename = os.path.basename(filename)
+        # strip any compression extensions that can be read
+        root, compression = get_compression(filename)
+        basename = os.path.basename(root)
 
         if basename == 'inp':
             return 'octopus'
 
         if '.' in basename:
-            ext = filename.rsplit('.', 1)[-1].lower()
+            ext = os.path.splitext(basename)[1].strip('.').lower()
             if ext in ['xyz', 'cube', 'json', 'cif']:
                 return ext
 
@@ -460,17 +593,25 @@ def filetype(filename, read=True):
             return 'vasp-xml'
         if basename == 'coord':
             return 'turbomole'
+        if basename == 'f34':
+            return 'crystal'
+        if basename == '34':
+            return 'crystal'
         if basename == 'gradient':
             return 'turbomole-gradient'
         if basename.endswith('I_info'):
             return 'cmdft'
         if basename == 'atoms.dat':
             return 'iwm'
+        if 'CONFIG' in basename:
+            return 'dlp4'
 
         if not read:
+            if ext is None:
+                raise UnknownFileTypeError('Could not guess file type')
             return extension2format.get(ext, ext)
 
-        fd = open(filename, 'rb')
+        fd = open_with_compression(filename, 'rb')
     else:
         fd = filename
         if fd is sys.stdin:
@@ -483,14 +624,32 @@ def filetype(filename, read=True):
         fd.seek(0)
 
     if len(data) == 0:
-        raise IOError('Empty file: ' + filename)
+        raise UnknownFileTypeError('Empty file: ' + filename)
+
+    if data.startswith(b'CDF'):
+        # We can only recognize these if we actually have the netCDF4 module.
+        try:
+            import netCDF4
+        except ImportError:
+            pass
+        else:
+            nc = netCDF4.Dataset(filename)
+            if 'Conventions' in nc.ncattrs():
+                if nc.Conventions in netcdfconventions2format:
+                    return netcdfconventions2format[nc.Conventions]
+                else:
+                    raise UnknownFileTypeError(
+                        "Unsupported NetCDF convention: "
+                        "'{}'".format(nc.Conventions))
+            else:
+                raise UnknownFileTypeError("NetCDF file does not have a "
+                                           "'Conventions' attribute.")
 
     for format, magic in [('traj', b'- of UlmASE-Trajectory'),
                           ('traj', b'AFFormatASE-Trajectory'),
                           ('gpw', b'- of UlmGPAW'),
                           ('gpw', b'AFFormatGPAW'),
                           ('trj', b'PickleTrajectory'),
-                          ('etsf', b'CDF'),
                           ('turbomole', b'$coord'),
                           ('turbomole-gradient', b'$grad'),
                           ('dftb', b'Geometry')]:
@@ -503,6 +662,7 @@ def filetype(filename, read=True):
                           ('espresso-out', b'Program PWSCF'),
                           ('aims-output', b'Invoking FHI-aims ...'),
                           ('lammps-dump', b'\nITEM: TIMESTEP\n'),
+                          ('qbox', b':simulation xmlns:'),
                           ('xsf', b'\nANIMSTEPS'),
                           ('xsf', b'\nCRYSTAL'),
                           ('xsf', b'\nSLAB'),
@@ -514,5 +674,15 @@ def filetype(filename, read=True):
         if magic in data:
             return format
 
-    format = extension2format.get(ext, ext)
+    format = extension2format.get(ext)
+    if format is None and guess:
+        format = ext
+    if format is None:
+        # Do quick xyz check:
+        lines = data.splitlines()
+        if lines and lines[0].strip().isdigit():
+            return 'xyz'
+
+        raise UnknownFileTypeError('Could not guess file type')
+
     return format

@@ -24,14 +24,19 @@ def match(word, *suffixes):
 
 # Beginning of computer generated data:
 commands = {
+    'band-structure':
+        ['-q', '--quiet', '-k', '--path', '-n', '--points', '-r',
+         '--range'],
     'build':
         ['-M', '--magnetic-moment', '--modify', '-V', '--vacuum', '-v',
          '--vacuum0', '--unit-cell', '--bond-length', '-x',
          '--crystal-structure', '-a', '--lattice-constant',
          '--orthorhombic', '--cubic', '-r', '--repeat', '-g',
          '--gui', '--periodic'],
-    'completion':
-        ['-0', '--dry-run'],
+    'convert':
+        ['-v', '--verbose', '-i', '--input-format', '-o',
+         '--output-format', '-f', '--force', '-n',
+         '--image-number'],
     'db':
         ['-v', '--verbose', '-q', '--quiet', '-n', '--count', '-l',
          '--long', '-i', '--insert-into', '-a',
@@ -41,18 +46,25 @@ commands = {
          '--sort', '--cut', '-p', '--plot', '-P', '--plot-data',
          '--csv', '-w', '--open-web-browser', '--no-lock-file',
          '--analyse', '-j', '--json', '-m', '--show-metadata',
-         '--set-metadata', '--unique'],
+         '--set-metadata', '-M', '--metadata-from-python-script',
+         '--unique'],
     'eos':
         ['-p', '--plot', '-t', '--type'],
+    'find':
+        ['-v', '--verbose', '-l', '--long', '-i', '--include', '-x',
+         '--exclude'],
     'gui':
-        ['-n', '--image-number', '-u', '--show-unit-cell', '-r',
-         '--repeat', '-R', '--rotations', '-o', '--output', '-g',
-         '--graph', '-t', '--terminal', '--interpolate', '-b',
-         '--bonds', '-s', '--scale'],
+        ['-n', '--image-number', '-r', '--repeat', '-R', '--rotations',
+         '-o', '--output', '-g', '--graph', '-t', '--terminal',
+         '--interpolate', '-b', '--bonds', '-s', '--scale'],
     'info':
         ['-v', '--verbose'],
     'nomad-upload':
         ['-t', '--token', '-n', '--do-not-save-token', '-0', '--dry-run'],
+    'reciprocal':
+        ['-v', '--verbose', '-p', '--path', '-d', '--dimension',
+         '--no-vectors', '-k', '--k-points', '-i',
+         '--ibz-k-points'],
     'run':
         ['-t', '--tag', '-p', '--parameters', '-d', '--database', '-S',
          '--skip', '--properties', '-f', '--maximum-force',
@@ -61,9 +73,10 @@ commands = {
          '--interactive', '-c', '--collection', '--modify',
          '--after'],
     'test':
-        ['-c', '--calculators', '-v', '--verbose', '-q', '--quiet'],
+        ['-c', '--calculators', '-v', '--verbose', '-q', '--quiet',
+         '--list', '--list-calculators'],
     'ulm':
-        ['-n', '--index', '-v', '--verbose']}
+        ['-n', '--index', '-d', '--delete', '-v', '--verbose']}
 # End of computer generated data
 
 

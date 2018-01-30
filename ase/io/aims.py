@@ -1,3 +1,4 @@
+import time
 
 def read_aims(filename):
     """Import FHI-aims geometry type files.
@@ -72,7 +73,7 @@ def read_aims(filename):
         fix.append(i)
     elif xyz.any():
         fix_cart.append(FixCartesian(i, xyz))
-    
+
     if cart_positions and scaled_positions:
         raise Exception("Can't specify atom positions with mixture of "
                         'Cartesian and fractional coordinates')
@@ -93,7 +94,7 @@ def read_aims(filename):
     return atoms
 
 
-def write_aims(filename, atoms, ghosts=None, friction_atoms=None):
+def write_aims(filename, atoms, scaled=False, ghosts=None, friction_atoms=None):
     """Method to write FHI-aims geometry files.
 
     Writes the atoms positions and constraints (only FixAtoms is
@@ -114,8 +115,9 @@ def write_aims(filename, atoms, ghosts=None, friction_atoms=None):
 
     fd = open(filename, 'w')
     fd.write('#=======================================================\n')
-    fd.write('#FHI-aims file: ' + filename + '\n')
-    fd.write('#Created using the Atomic Simulation Environment (ASE)\n')
+    fd.write('# FHI-aims file: ' + filename + '\n')
+    fd.write('# Created using the Atomic Simulation Environment (ASE)\n')
+    fd.write('# ' + time.asctime() + '\n')
     fd.write('#=======================================================\n')
     i = 0
     if atoms.get_pbc().any():
@@ -145,14 +147,21 @@ def write_aims(filename, atoms, ghosts=None, friction_atoms=None):
         assert len(ghosts) == len(atoms)
     if friction_atoms is None:
         friction_atoms = []
+    scaled_positions = atoms.get_scaled_positions()
     for i, atom in enumerate(atoms):
         if ghosts[i] == 1:
             atomstring = 'empty '
+        elif scaled:
+            atomstring = 'atom_frac '
         else:
             atomstring = 'atom '
         fd.write(atomstring)
-        for pos in atom.position:
-            fd.write('%16.16f ' % pos)
+        if scaled:
+            for pos in scaled_positions[i]:
+                fd.write('%16.16f ' % pos)
+        else:
+            for pos in atom.position:
+                fd.write('%16.16f ' % pos)
         fd.write(atom.symbol)
         fd.write('\n')
         # writing velocities to file

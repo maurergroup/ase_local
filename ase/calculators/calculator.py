@@ -16,6 +16,30 @@ class PropertyNotImplementedError(NotImplementedError):
     pass
 
 
+def compare_atoms(atoms1, atoms2, tol=1e-15):
+    """Check for system changes since last calculation."""
+    if atoms1 is None:
+        system_changes = all_changes[:]
+    else:
+        system_changes = []
+        if not equal(atoms1.positions, atoms2.positions, tol):
+            system_changes.append('positions')
+        if not equal(atoms1.numbers, atoms2.numbers):
+            system_changes.append('numbers')
+        if not equal(atoms1.cell, atoms2.cell, tol):
+            system_changes.append('cell')
+        if not equal(atoms1.pbc, atoms2.pbc):
+            system_changes.append('pbc')
+        if not equal(atoms1.get_initial_magnetic_moments(),
+                     atoms2.get_initial_magnetic_moments(), tol):
+            system_changes.append('initial_magmoms')
+        if not equal(atoms1.get_initial_charges(),
+                     atoms2.get_initial_charges(), tol):
+            system_changes.append('initial_charges')
+
+    return system_changes
+
+
 all_properties = ['energy', 'forces', 'stress', 'dipole',
                   'charges', 'magmom', 'magmoms', 'free_energy']
 
@@ -25,11 +49,12 @@ all_changes = ['positions', 'numbers', 'cell', 'pbc',
 
 
 # Recognized names of calculators sorted alphabetically:
-names = ['abinit', 'aims', 'amber', 'asap', 'castep', 'cp2k', 'demon', 'dftb',
-         'dmol', 'eam', 'elk', 'emt', 'exciting', 'fleur', 'gaussian', 'gpaw',
-         'gromacs', 'hotbit', 'jacapo', 'lammps', 'lammpslib', 'lj', 'mopac',
-         'morse', 'nwchem', 'octopus', 'onetep', 'siesta', 'tip3p',
-         'turbomole', 'vasp']
+names = ['abinit', 'aims', 'amber', 'asap', 'castep', 'cp2k', 'crystal',
+         'demon', 'dftb', 'dmol', 'eam', 'elk', 'emt', 'espresso',
+         'exciting', 'fleur', 'gaussian', 'gpaw', 'gromacs', 'gulp',
+         'hotbit', 'jacapo', 'lammpsrun',
+         'lammpslib', 'lj', 'mopac', 'morse', 'nwchem', 'octopus', 'onetep',
+         'siesta', 'tip3p', 'turbomole', 'vasp']
 
 
 special = {'cp2k': 'CP2K',
@@ -37,8 +62,10 @@ special = {'cp2k': 'CP2K',
            'eam': 'EAM',
            'elk': 'ELK',
            'emt': 'EMT',
+           'crystal': 'CRYSTAL',
            'fleur': 'FLEUR',
-           'lammps': 'LAMMPS',
+           'gulp': 'GULP',
+           'lammpsrun': 'LAMMPS',
            'lammpslib': 'LAMMPSlib',
            'lj': 'LennardJones',
            'mopac': 'MOPAC',
@@ -172,6 +199,33 @@ def kpts2ndarray(kpts, atoms=None):
     return np.array(kpts)
 
 
+class EigenvalOccupationMixin:
+    """Define 'eigenvalues' and 'occupations' properties on class.
+
+    eigenvalues and occupations will be arrays of shape (spin, kpts, nbands).
+
+    Classes must implement the old-fashioned get_eigenvalues and
+    get_occupations methods."""
+
+    @property
+    def eigenvalues(self):
+        return self.build_eig_occ_array(self.get_eigenvalues)
+
+    @property
+    def occupations(self):
+        return self.build_eig_occ_array(self.get_occupation_numbers)
+
+    def build_eig_occ_array(self, getter):
+        nspins = self.get_number_of_spins()
+        nkpts = len(self.get_ibz_k_points())
+        nbands = self.get_number_of_bands()
+        arr = np.zeros((nspins, nkpts, nbands))
+        for s in range(nspins):
+            for k in range(nkpts):
+                arr[s, k, :] = getter(spin=s, kpt=k)
+        return arr
+
+
 class Parameters(dict):
     """Dictionary for parameters.
 
@@ -198,7 +252,7 @@ class Parameters(dict):
     def tostring(self):
         keys = sorted(self)
         return 'dict(' + ',\n     '.join(
-            '%s=%r' % (key, self[key]) for key in keys) + ')\n'
+            '{}={!r}'.format(key, self[key]) for key in keys) + ')\n'
 
     def write(self, filename):
         file = open(filename, 'w')
@@ -206,7 +260,7 @@ class Parameters(dict):
         file.close()
 
 
-class Calculator:
+class Calculator(object):
     """Base-class for all ASE calculators.
 
     A calculator must raise PropertyNotImplementedError if asked for a
@@ -388,26 +442,7 @@ class Calculator:
 
     def check_state(self, atoms, tol=1e-15):
         """Check for system changes since last calculation."""
-        if self.atoms is None:
-            system_changes = all_changes[:]
-        else:
-            system_changes = []
-            if not equal(self.atoms.positions, atoms.positions, tol):
-                system_changes.append('positions')
-            if not equal(self.atoms.numbers, atoms.numbers):
-                system_changes.append('numbers')
-            if not equal(self.atoms.cell, atoms.cell, tol):
-                system_changes.append('cell')
-            if not equal(self.atoms.pbc, atoms.pbc):
-                system_changes.append('pbc')
-            if not equal(self.atoms.get_initial_magnetic_moments(),
-                         atoms.get_initial_magnetic_moments(), tol):
-                system_changes.append('initial_magmoms')
-            if not equal(self.atoms.get_initial_charges(),
-                         atoms.get_initial_charges(), tol):
-                system_changes.append('initial_charges')
-
-        return system_changes
+        return compare_atoms(self.atoms, atoms)
 
     def get_potential_energy(self, atoms=None, force_consistent=False):
         energy = self.get_property('energy', atoms)
@@ -415,8 +450,8 @@ class Calculator:
             if 'free_energy' not in self.results:
                 name = self.__class__.__name__
                 raise PropertyNotImplementedError(
-                    'Force consistent/free energy not provided by {0} '
-                    'calculator'.format(name))
+                    'Force consistent/free energy ("free_energy") '
+                    'not provided by {0} calculator'.format(name))
             return self.results['free_energy']
         else:
             return energy
@@ -442,7 +477,8 @@ class Calculator:
 
     def get_property(self, name, atoms=None, allow_calculation=True):
         if name not in self.implemented_properties:
-            raise PropertyNotImplementedError
+            raise PropertyNotImplementedError('{} property not implemented'
+                                              .format(name))
 
         if atoms is None:
             atoms = self.atoms
@@ -465,7 +501,8 @@ class Calculator:
         if name not in self.results:
             # For some reason the calculator was not able to do what we want,
             # and that is OK.
-            raise PropertyNotImplementedError
+            raise PropertyNotImplementedError('{} not present in this '
+                                              'calculation'.format(name))
 
         result = self.results[name]
         if isinstance(result, np.ndarray):
@@ -473,6 +510,7 @@ class Calculator:
         return result
 
     def calculation_required(self, atoms, properties):
+        assert not isinstance(properties, str)
         system_changes = self.check_state(atoms)
         if system_changes:
             return True
@@ -606,20 +644,16 @@ class FileIOCalculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
         self.write_input(self.atoms, properties, system_changes)
         if self.command is None:
-            raise RuntimeError('Please set $%s environment variable ' %
-                               ('ASE_' + self.name.upper() + '_COMMAND') +
-                               'or supply the command keyword')
+            raise RuntimeError(
+                'Please set ${} environment variable '
+                .format('ASE_' + self.name.upper() + '_COMMAND') +
+                'or supply the command keyword')
         command = self.command.replace('PREFIX', self.prefix)
-        olddir = os.getcwd()
-        try:
-            os.chdir(self.directory)
-            errorcode = subprocess.call(command, shell=True)
-        finally:
-            os.chdir(olddir)
+        errorcode = subprocess.call(command, shell=True, cwd=self.directory)
 
         if errorcode:
-            raise RuntimeError('%s returned an error: %d' %
-                               (self.name, errorcode))
+            raise RuntimeError('{} in {} returned an error: {}'
+                               .format(self.name, self.directory, errorcode))
         self.read_results()
 
     def write_input(self, atoms, properties=None, system_changes=None):

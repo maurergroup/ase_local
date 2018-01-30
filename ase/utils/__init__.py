@@ -4,6 +4,8 @@ import os
 import pickle
 import sys
 import time
+import string
+from importlib import import_module
 from math import sin, cos, radians, atan2, degrees
 from contextlib import contextmanager
 
@@ -12,14 +14,22 @@ try:
 except ImportError:
     from fractions import gcd
 
+try:
+    from pathlib import PurePath
+except ImportError:
+    class PurePath:
+        pass
+
 import numpy as np
 
-from ase.data import chemical_symbols
+from ase.utils.formula import formula_hill, formula_metal
+from ase.data import covalent_radii
 
 __all__ = ['exec_', 'basestring', 'import_module', 'seterr', 'plural',
            'devnull', 'gcd', 'convert_string_to_fd', 'Lock',
-           'opencew', 'OpenLock', 'hill', 'rotate', 'irotate', 'givens',
-           'hsv2rgb', 'hsv', 'pickleload']
+           'opencew', 'OpenLock', 'rotate', 'irotate', 'givens',
+           'hsv2rgb', 'hsv', 'pickleload', 'FileNotFoundError',
+           'formula_hill', 'formula_metal', 'PurePath']
 
 
 # Python 2+3 compatibility stuff:
@@ -29,7 +39,11 @@ if sys.version_info[0] > 2:
     basestring = str
     from io import StringIO
     pickleload = functools.partial(pickle.load, encoding='bytes')
+    FileNotFoundError = getattr(builtins, 'FileNotFoundError')
 else:
+    class FileNotFoundError(OSError):
+        pass
+
     # Legacy Python:
     def exec_(code, dct):
         exec('exec code in dct')
@@ -37,16 +51,6 @@ else:
     from StringIO import StringIO
     pickleload = pickle.load
 StringIO  # appease pyflakes
-
-if sys.version_info >= (2, 7):
-    from importlib import import_module
-else:
-    # Python 2.6:
-    def import_module(name):
-        module = __import__(name)
-        for part in name.split('.')[1:]:
-            module = getattr(module, part)
-        return module
 
 
 @contextmanager
@@ -151,7 +155,7 @@ def opencew(filename, world=None):
 
 class Lock:
     def __init__(self, name='lock', world=None):
-        self.name = name
+        self.name = str(name)
 
         if world is None:
             from ase.parallel import world
@@ -190,22 +194,52 @@ class OpenLock:
         pass
 
 
-def hill(numbers):
-    """Convert list of atomic numbers to a chemical formula as a string.
+def search_current_git_hash(arg, world=None):
+    """Search for .git directory and current git commit hash.
 
-    Elements are alphabetically ordered with C and H first."""
+    Parameters:
 
-    if isinstance(numbers, dict):
-        count = dict(numbers)
+    arg: str (directory path) or python module
+        .git directory is searched from the parent directory of
+        the given directory or module.
+    """
+    if world is None:
+        from ase.parallel import world
+    if world.rank != 0:
+        return None
+
+    # Check argument
+    if isinstance(arg, basestring):
+        # Directory path
+        dpath = arg
     else:
-        count = {}
-        for Z in numbers:
-            symb = chemical_symbols[Z]
-            count[symb] = count.get(symb, 0) + 1
-    result = [(s, count.pop(s)) for s in 'CH' if s in count]
-    result += [(s, count[s]) for s in sorted(count)]
-    return ''.join('{0}{1}'.format(symbol, n) if n > 1 else symbol
-                   for symbol, n in result)
+        # Assume arg is module
+        dpath = os.path.dirname(arg.__file__)
+    dpath = os.path.abspath(dpath)
+    dpath = os.path.dirname(dpath)  # Go to the parent directory
+    git_dpath = os.path.join(dpath, '.git')
+    if not os.path.isdir(git_dpath):
+        # Replace this 'if' with a loop if you want to check
+        # further parent directories
+        return None
+    HEAD_file = os.path.join(git_dpath, 'HEAD')
+    if not os.path.isfile(HEAD_file):
+        return None
+    with open(HEAD_file, 'r') as f:
+        line = f.readline().strip()
+    if line.startswith('ref: '):
+        ref = line[5:]
+        ref_file = os.path.join(git_dpath, ref)
+    else:
+        # Assuming detached HEAD state
+        ref_file = HEAD_file
+    if not os.path.isfile(ref_file):
+        return None
+    with open(ref_file, 'r') as f:
+        line = f.readline().strip()
+    if all(c in string.hexdigits for c in line):
+        return line
+    return None
 
 
 def rotate(rotations, rotation=np.identity(3)):
@@ -318,6 +352,23 @@ def hsv(array, s=.9, v=.9):
     for rgb, h in zip(result, array.flat):
         rgb[:] = hsv2rgb(h, s, v)
     return np.reshape(result, array.shape + (3,))
+
+
+def natural_cutoffs(atoms, mult=1, **kwargs):
+    """Generate a radial cutoff for every atom based on covalent radii
+
+    The covalent radii are a reasonable cutoff estimation for bonds in
+    many applications such as neighborlists, so function generates an
+    atoms length list of radii based on this idea.
+
+    atoms: An atoms object
+    mult: A multiplier for all cutoffs, useful for coarse grained adjustment
+    kwargs: Symbol of the atom and its corresponding cutoff, used to override
+            the covalent radii
+    """
+    return [kwargs.get(atom.symbol, covalent_radii[atom.number] * mult)
+            for atom in atoms]
+
 
 # This code does the same, but requires pylab
 # def cmap(array, name='hsv'):

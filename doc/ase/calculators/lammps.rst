@@ -4,14 +4,14 @@
 LAMMPS Calculators
 ==================
 
-LAMMPS_ (Large-scale Atomic/Molecular Massively Parallel Simulator) is
+LAMMPS_link_ (Large-scale Atomic/Molecular Massively Parallel Simulator) is
 a classical molecular dynamics code.
 
 There are two calculators that interface to the LAMMPS molecular
 dynamics code that can be used to solve an atoms model for energy,
 atom forces and cell stresses. They are:
 
-1. :mod:`LAMMPSrun` which interfaces to LAMMPS via writing a
+1. :mod:`ase.clculators.LAMMPSrun` which interfaces to LAMMPS via writing a
 controlling input file that is then run automatically through LAMMPS
 and the results read back in. These results are currently limited to
 total energy, atomic forces and cell stress.
@@ -27,7 +27,7 @@ LAMMPS routine will cause python to terminate.
 ASE is licensed as LGPL and LAMMPS is GPL which 'prohibits' them from
 being linked together in a distribution such as ASE. As a result, LAMMPSlib is
 not distributed with the ASE project but is available separately at
-lammpslib_. Further explanation of the licensing is constained in
+lammpslib_link_. Further explanation of the licensing is constained in
 :ref:`license info`.
 
 It should not matter which code you use, but if you want access to
@@ -39,5 +39,9 @@ debugging the is difficult and different for both calculators.
 Both of these interfaces are still experimental code and any
 problems should be reported to the ASE developers mailing list.
 
-.. _LAMMPS: http://lammps.sandia.gov
-.. _lammpslib: https://svn.fysik.dtu.dk/projects/ase-extra/trunk/ase/calculators
+.. autoclass:: ase.calculators.lammpsrun.LAMMPS
+
+.. autoclass:: ase.calculators.lammpslib.LAMMPSlib
+
+.. _LAMMPS_link: http://lammps.sandia.gov
+.. _lammpslib_link: https://svn.fysik.dtu.dk/projects/ase-extra/trunk/ase/calculators

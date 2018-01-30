@@ -4,6 +4,19 @@ doc/build/
 MANIFEST
 .DS_Store
 */.DS_Store
+*.traj
+/build
+/ase.egg-info
 
 #editor backup files
 *.py~
+*.rst~
+
+# Ignore PyCharm settings
+.idea/
+
+# Vim swap files:
+.*.sw?
+
+# Translation template
+ase/gui/po/ag.pot
