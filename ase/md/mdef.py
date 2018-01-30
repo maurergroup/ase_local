@@ -60,6 +60,10 @@ class MDEF(MolecularDynamics):
 
     def set_friction(self, friction):
         self.frict, self.fric_vecs= eigh(friction)
+        for i in range(len(friction)):
+            if self.frict[i] < 0.0:
+                #print 'friction Eigenvalues smaller than zero detected'
+                self.frict[i] = 0.0
         #TODO we might need to check if friction is zero
         # self.frict = friction
         self.updatevars()

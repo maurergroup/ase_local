@@ -64,8 +64,8 @@ class ChargePopulationAnalysis:
                 for iOrb in xrange(self.nOrbs):
                     APT[self.Orb2Atom[iOrb]] += wkfka*abs( self.coeff[ik,a,iOrb] )**2
             
-        self.a_div_a0 = 1. + (APT - self.n_el_neutral)/self.ZAtoms
-        
+        #self.a_div_a0 = 1. + (APT - self.n_el_neutral)/self.ZAtoms
+        self.a_div_a0 = APT/self.n_el_neutral
     
     def get_a_div_a0(self):
         """  return rescaling ratios as obtained by CPA.  """

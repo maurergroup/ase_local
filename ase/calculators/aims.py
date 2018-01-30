@@ -472,6 +472,21 @@ class Aims(FileIOCalculator):
         fin.close()
         fout.close()
         os.rename(newctrl, self.ctrlname)
+    
+    def set_radial_multiplier(self):
+        assert isinstance(self.radmul, int)
+        newctrl = self.ctrlname +'.new'
+        fin = open(self.ctrlname, 'r')
+        fout = open(newctrl, 'w')
+        newline = "    radial_multiplier   %i\n" % self.radmul
+        for line in fin:
+            if '    radial_multiplier' in line:
+                fout.write(newline)
+            else:
+                fout.write(line)
+        fin.close()
+        fout.close()
+        os.rename(newctrl, self.ctrlname)
 
     def get_dipole_moment(self, atoms):
         if ('dipole' not in self.parameters.get('output', []) or

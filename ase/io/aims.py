@@ -102,6 +102,8 @@ def write_aims(filename, atoms, ghosts=None, friction_atoms=None):
 
     from ase.constraints import FixAtoms, FixCartesian
     import numpy as np
+    from ase.units import second
+    ps = second*1E-12
 
     if isinstance(atoms, (list, tuple)):
         if len(atoms) > 1:
@@ -123,6 +125,12 @@ def write_aims(filename, atoms, ghosts=None, friction_atoms=None):
                 fd.write('%16.16f ' % vector[i])
             fd.write('\n')
     fix_cart = np.zeros([len(atoms), 3])
+
+    if atoms.get_velocities() is not None:
+        write_velocities = True
+        velocities = atoms.get_velocities()/ps
+    else:
+        write_velocities = False
 
     if atoms.constraints:
         for constr in atoms.constraints:
@@ -147,6 +155,12 @@ def write_aims(filename, atoms, ghosts=None, friction_atoms=None):
             fd.write('%16.16f ' % pos)
         fd.write(atom.symbol)
         fd.write('\n')
+        # writing velocities to file
+        if write_velocities:
+            fd.write('velocity')
+            for vel in velocities[i]:
+                fd.write('%16.8f ' % vel)
+            fd.write('\n')
         # (1) all coords are constrained:
         if fix_cart[i].all():
             fd.write('constrain_relaxation .true.\n')

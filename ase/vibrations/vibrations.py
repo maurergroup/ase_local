@@ -270,6 +270,16 @@ class Vibrations:
         s = 1. / units.invcm
         return s * self.get_energies(method, direction)
 
+    def get_reduced_masses(self):
+
+        n = 3*len(self.indices)
+        redmasses = np.zeros(n)
+        for i in range(n):
+            mode = (self.modes[i] * self.im)
+            redmasses[i] = 1./(np.dot(mode,mode))
+
+        return redmasses
+
     def summary(self, method='standard', direction='central', freq=None,
                 log=sys.stdout):
         """Print a summary of the vibrational frequencies.
