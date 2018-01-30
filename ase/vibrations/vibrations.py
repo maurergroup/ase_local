@@ -13,7 +13,7 @@ import numpy as np
 import ase.units as units
 from ase.io.trajectory import Trajectory
 from ase.parallel import rank, paropen
-from ase.utils import opencew
+from ase.utils import opencew, pickleload, basestring
 
 
 class Vibrations:
@@ -109,6 +109,7 @@ class Vibrations:
                                'the vibrated atoms. Use Atoms.set_masses()'
                                ' to set all masses to non-zero values.')
         self.im = np.repeat(m[self.indices] ** -0.5, 3)
+        self.ram = None
 
     def set_vibdata(self, hnu, modes):
       """Initialize with precalculated vibrational Eigenmodes and -vectors"""
@@ -161,38 +162,45 @@ class Vibrations:
         forces = self.atoms.get_forces()
         if self.ir:
             dipole = self.calc.get_dipole_moment(self.atoms)
+        if self.ram:
+            freq, pol = self.get_polarizability()
         if rank == 0:
-            if self.ir:
-                pickle.dump([forces, dipole], fd)
+            if self.ir and self.ram:
+                pickle.dump([forces, dipole, freq, pol], fd, protocol=2)
+                sys.stdout.write(
+                    'Writing %s, dipole moment = (%.6f %.6f %.6f)\n' %
+                    (filename, dipole[0], dipole[1], dipole[2]))
+            elif self.ir and not self.ram:
+                pickle.dump([forces, dipole], fd, protocol=2)
                 sys.stdout.write(
                     'Writing %s, dipole moment = (%.6f %.6f %.6f)\n' %
                     (filename, dipole[0], dipole[1], dipole[2]))
             else:
-                pickle.dump(forces, fd)
+                pickle.dump(forces, fd, protocol=2)
                 sys.stdout.write('Writing %s\n' % filename)
             fd.close()
         sys.stdout.flush()
 
     def clean(self, empty_files=False):
         """Remove pickle-files.
-        
+
         Use empty_files=True to remove only empty files."""
-        
+
         if rank != 0:
             return 0
-            
+
         n = 0
         filenames = [self.name + '.eq.pckl']
         for filename, a, i, disp in self.displacements():
             filenames.append(filename)
-        
+
         for name in filenames:
             if op.isfile(name):
                 if not empty_files or op.getsize(name) == 0:
                     os.remove(name)
                     n += 1
         return n
-        
+
     def read(self, method='standard', direction='central'):
         self.method = method.lower()
         self.direction = direction.lower()
@@ -200,7 +208,8 @@ class Vibrations:
         assert self.direction in ['central', 'forward', 'backward']
 
         def load(fname):
-            f = pickle.load(open(fname, 'rb'))
+            with open(fname, 'rb') as fl:
+                f = pickleload(fl)
             if not hasattr(f, 'shape'):
                 # output from InfraRed
                 return f[0]
@@ -299,7 +308,7 @@ class Vibrations:
             file to create.
         """
 
-        if isinstance(log, str):
+        if isinstance(log, basestring):
             log = paropen(log, 'a')
         write = log.write
 
@@ -392,12 +401,12 @@ class Vibrations:
         intensity.
         """
 
-        self.type = type.lower()
-        assert self.type in ['gaussian', 'lorentzian']
+        lctype = type.lower()
+        assert lctype in ['gaussian', 'lorentzian']
         if not npts:
             npts = int((end - start) / width * 10 + 1)
         prefactor = 1
-        if type == 'lorentzian':
+        if lctype == 'lorentzian':
             intensities = intensities * width * pi / 2.
             if normalize:
                 prefactor = 2. / width / pi
@@ -411,7 +420,7 @@ class Vibrations:
         energies = np.linspace(start, end, npts)
         for i, energy in enumerate(energies):
             energies[i] = energy
-            if type == 'lorentzian':
+            if lctype == 'lorentzian':
                 spectrum[i] = (intensities * 0.5 * width / pi /
                                ((frequencies - energy)**2 +
                                 0.25 * width**2)).sum()
