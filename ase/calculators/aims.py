@@ -76,6 +76,7 @@ string_keys = [
     'fo_embedding',
     'run_command',
     'calculate_friction',
+    'plus_u',
 ]
 
 int_keys = [
@@ -279,6 +280,8 @@ class Aims(FileIOCalculator):
             File into which the stdout of the FHI aims run is piped into. Note
             that this will be only of any effect, if the <run_command> does not
             yet contain a '>' directive.
+        plus_u : dict
+            For DFT+U. Adds a +U term to one specific shell of the species.
 
         kwargs : dict
             Any of the base class arguments.
@@ -497,7 +500,7 @@ class Aims(FileIOCalculator):
                      'List of parameters used to initialize the calculator:',
                      ]:
             output.write('# ' + line + '\n')
-        for p,v in self.parameters.iteritems():
+        for p, v in self.parameters.items():
             s = '#     {} : {}\n'.format(p, v)
             output.write(s)
         output.write(lim + '\n')
@@ -519,6 +522,7 @@ class Aims(FileIOCalculator):
                 continue
             elif key == 'restart_aims':
                 output.write('%-35s%s\n' % ('restart', value))
+            elif key == 'plus_u':
                 continue
             elif key == 'smearing':
                 name = self.parameters.smearing[0].lower()
@@ -626,6 +630,10 @@ class Aims(FileIOCalculator):
                 raise RuntimeError(
                     "Basis tier %i not found for element %s" %
                     (self.targettier, symbol))
+            if self.parameters.get('plus_u') is not None:
+                if symbol in self.parameters.plus_u.keys():
+                    control.write('plus_u %s \n' %
+                                  self.parameters.plus_u[symbol])
         control.close()
 
         if self.radmul is not None:
