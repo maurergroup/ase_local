@@ -391,6 +391,9 @@ class qmme(Calculator):
            self.check_if_set_and_value('qm_atoms'):
             for iqmreg, qmreg in enumerate(self.qm_regions):
 
+		# reset the calculator
+		self.qm_calculators[iqmreg].reset()
+
                 # Jump in the appropriate directory and start calculation
                 if self.hirlog:
                     try:
@@ -415,6 +418,9 @@ class qmme(Calculator):
 
         if self.check_if_set_and_value('nmm_regions'):
             for immreg, mmreg in enumerate(self.mm_regions):
+
+		# reset the calculator
+		self.mm_calculators[immreg].reset()
 
                 # Jump in the appropriate directory and start calculation
                 if self.hirlog:

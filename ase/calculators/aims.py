@@ -533,7 +533,7 @@ class Aims(FileIOCalculator):
                 if name == 'methfessel-paxton':
                     order = self.parameters.smearing[2]
                     output.write(' %d' % order)
-                output.write('\n' % order)
+                output.write('\n')
             elif key == 'output':
                 for output_type in value:
                     output.write('%-35s%s\n' % (key, output_type))
@@ -577,7 +577,7 @@ class Aims(FileIOCalculator):
         self.read_energy()
         if ('output') in self.parameters:
             if ('hirshfeld') in self.parameters['output']:
-                self.get_hirsh_volrat()
+                self.read_hirsh_volrat()
         if ('compute_forces' in self.parameters or
             'sc_accuracy_forces' in self.parameters):
             self.read_forces()
@@ -722,7 +722,8 @@ class Aims(FileIOCalculator):
             raise PropertyNotImplementedError
         return FileIOCalculator.get_forces(self, atoms)
     
-    def get_hirsh_volrat(self,atoms):
+    def get_hirsh_volrat(self):
+	atoms = self.atoms
         if ('output' in self.parameters and
            'hirshfeld' not in self.parameters['output']):
                 raise NotImplementedError

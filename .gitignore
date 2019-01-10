@@ -21,3 +21,7 @@ MANIFEST
 
 # Translation template
 ase/gui/po/ag.pot
+
+# castep-calculator and dftdisp
+*.json
+*.so
