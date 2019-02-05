@@ -620,7 +620,8 @@ class Calculator(object):
         return np.array([[numeric_force(atoms, a, i, d)
                           for i in range(3)] for a in range(len(atoms))])
 
-    def calculate_numerical_stress(self, atoms, d=1e-6, voigt=True):
+    def calculate_numerical_stress(self, atoms, d=1e-6, voigt=True,
+                                   force_consistent=True):
         """Calculate numerical stress using finite difference."""
 
         stress = np.zeros((3, 3), dtype=float)
@@ -631,11 +632,11 @@ class Calculator(object):
             x = np.eye(3)
             x[i, i] += d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eplus = atoms.get_potential_energy(force_consistent=True)
+            eplus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             x[i, i] -= 2 * d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eminus = atoms.get_potential_energy(force_consistent=True)
+            eminus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             stress[i, i] = (eplus - eminus) / (2 * d * V)
             x[i, i] += d
@@ -644,12 +645,12 @@ class Calculator(object):
             x[i, j] = d
             x[j, i] = d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eplus = atoms.get_potential_energy(force_consistent=True)
+            eplus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             x[i, j] = -d
             x[j, i] = -d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eminus = atoms.get_potential_energy(force_consistent=True)
+            eminus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             stress[i, j] = (eplus - eminus) / (4 * d * V)
             stress[j, i] = stress[i, j]
