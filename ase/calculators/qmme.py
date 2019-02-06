@@ -29,7 +29,8 @@ class qmme(Calculator):
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, logprfx=None,
-                 reuse=False, hirlog=False, **kwargs):
+                 reuse=False, hirlog=False, hirbulk=1.0,
+                 hirlast=[False, False], **kwargs):
 
         """ Assign QM and MM calculators and regions.
 
@@ -226,13 +227,17 @@ class qmme(Calculator):
         # user about missing Hirshfeld-Treatment.
         if 'dftdisp' in str(self.mm_calculators):
             for qmcalc in self.qm_calculators:
-#                if "read_hirsh_volrat" not in dir(qmcalc):
-                 if not hasattr(qmcalc, 'get_hirsh_volrat'):
+                 #if "read_hirsh_volrat" not in dir(qmcalc):
+                if not hasattr(qmcalc, 'get_hirsh_volrat'):
                     print error_head
                     print ' |  QM calculator ' + str(qmcalc.__class__.__name__) + \
                           ' does not support Hirshfeld-'
-                    print ' |  paritioning. Defaulting to v_hirsh/v_free = 1'
+                    print ' |  paritioning. Defaulting to v_hirsh/v_free = {}'.format(hirbulk)
                     print error_tail + '\n'
+
+        # Set the default value for hirshfeld-bulk partitioning
+        self.hirbulk = hirbulk
+        self.hirlast = hirlast
 
         # Print a Summary of the Configuration of QMMM-Calculator
         print ' +----------------** QMME SUMMARY **----------------+\n |'
@@ -671,19 +676,19 @@ class qmme(Calculator):
                     " Defaulting to v_hirsh/v_free = 1."
                 self.hvrs_qm_calc[i_current_qm] = [1.0 for i in \
                                   range(self.qm_regions[i_current_qm].get_number_of_atoms())]
-            
+
             self.solved_hvr_qm[i_current_qm] = True
-        
+
         return self.hvrs_qm_calc[i_current_qm]
-        
-    
+
+
     def generate_hirshpart(self, iregion):
         """ This function generates an array with all the hirshfeld parameters.
 
         Since only after the QM calculation, the Hirshfeld charges required in
         MM treatment are available for QM atoms we need to reconstruct an array
-        which contains those as well as a generic value of 1 for all not
-        available atoms.
+        which contains those as well as a generic value of self.hirbulk for all
+        not available atoms.
         """
 
         if self.nqm_regions == 0:
@@ -701,9 +706,15 @@ class qmme(Calculator):
                     self.qm_hirshpart[atom] = self.get_hirsh_volrat(region)[
                         np.sum(self.qm_map[region]) - nelem]
                     nelem -= 1
+                # set to the bulk value
                 elif (self.qm_hirshpart[atom] == 0):
-                    self.qm_hirshpart[atom] = 1.0
-        
+                    self.qm_hirshpart[atom] = self.hirbulk
+
+        # If we requested to overwrite particular atoms the
+        # hirshfeld-bulk-value then is done here
+        if any(self.hirlast):
+            self.qm_hirshpart[self.hirlast] = self.hirbulk
+
         ## reset calculator flag for new evaluation
         self.solved_hvr_qm = [False,]*self.nqm_regions
         # Correct Hirshfeld-Partitioning for smaller portions of the whole

@@ -688,7 +688,7 @@ class Aims(FileIOCalculator):
         fin.close()
         fout.close()
         os.rename(newctrl, self.ctrlname)
-    
+
     def set_radial_multiplier(self):
         assert isinstance(self.radmul, int)
         newctrl = self.ctrlname +'.new'
@@ -721,14 +721,13 @@ class Aims(FileIOCalculator):
             'sc_accuracy_forces' not in self.parameters):
             raise PropertyNotImplementedError
         return FileIOCalculator.get_forces(self, atoms)
-    
+
     def get_hirsh_volrat(self):
-	atoms = self.atoms
         if ('output' in self.parameters and
            'hirshfeld' not in self.parameters['output']):
                 raise NotImplementedError
-        return FileIOCalculator.get_property(self, 'hirsh_volrat', atoms)
-    
+        return FileIOCalculator.get_property(self, 'hirsh_volrat', self.atoms)
+
     def get_friction_tensor(self,atoms):
         if ('calculate_friction' not in self.parameters):
                 raise NotImplementedError
@@ -788,7 +787,7 @@ class Aims(FileIOCalculator):
             if line.rfind('Have a nice day') > -1:
                 converged = True
         return converged
-    
+
     def read_hirsh_volrat(self):
         infile = open(self.out, 'r')
         lines = infile.readlines()
@@ -1004,23 +1003,23 @@ class Aims(FileIOCalculator):
         for n in range(ndim):
             #collect index of atom
             line = lines[iline].split()
-            iatom = int(line[2])-1 
+            iatom = int(line[2])-1
             icart = int(line[4])-1
             friction_index[iatom*3+icart] = n
             iline += 1
             line = lines[iline].split()
             friction_tensor[n,:] = [float(value) for value in line]
             iline += 1
-        #now we have the calculated friction tensor elements and 
+        #now we have the calculated friction tensor elements and
         #need to embedd them into the full system tensor
         friction_tensor_full = np.zeros([3*natoms,3*natoms],dtype=np.float)
         for i in range(3*natoms):
             for j in range(3*natoms):
                 if (friction_index[i]>=0 and friction_index[j]>=0):
                     friction_tensor_full[i,j] = \
-                        friction_tensor[friction_index[i],friction_index[j]] 
+                        friction_tensor[friction_index[i],friction_index[j]]
         #return friction tensor in 1/ASE time units
-        self.results['friction'] = friction_tensor_full/ps 
+        self.results['friction'] = friction_tensor_full/ps
 
 class AimsCube:
     "Object to ensure the output of cube files, can be attached to Aims object"
