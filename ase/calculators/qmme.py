@@ -25,12 +25,13 @@ class qmme(Calculator):
                   'qm_pbcs',            # array of 3x1 boolean arrays
                   'mm_pbcs',            # array or 3x1 boolean arrays
                   'qm_cell',            # array or 3x3 arrays
-                  'mm_cell')            # array of 3x3 arrays
+                  'mm_cell',            # array of 3x3 arrays
+                  'hirbulk',            # array of floats
+                  'hirlast')            # array of tuples
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, logprfx=None,
-                 reuse=False, hirlog=False, hirbulk=1.0,
-                 hirlast=[False, False], reset=True, **kwargs):
+                 reuse=False, hirlog=False, reset=True, **kwargs):
 
         """ Assign QM and MM calculators and regions.
 
@@ -68,6 +69,12 @@ class qmme(Calculator):
 
         mm_cell:            array of 3x3 arrays
             unit cell parameters for each MM region
+
+        hirbulk:            list of floats
+            hirshfeld ratio value for each of nhf_regions
+
+        hirlast:            list of 2-tuples
+            first and last atom belonging to each in nhf_regions
 
         """
 
@@ -204,6 +211,10 @@ class qmme(Calculator):
         # Routines for logging and reuse of prior data
         self.reuse = reuse
 
+        # reset to v_hirsh/v_free = 1 if not give
+        if not hasattr(self, 'hirbulk'):
+            self.hirbulk = [1.0]
+
         if not self.reuse and hirlog:
             try:
                 os.makedirs(self.logprfx)
@@ -232,15 +243,8 @@ class qmme(Calculator):
                     print(error_head)
                     print(' |  QM calculator ' + str(qmcalc.__class__.__name__) + \
                           ' does not support Hirshfeld-')
-                    print(' |  paritioning. Defaulting to v_hirsh/v_free = {}'.format(hirbulk))
+                    print(' |  partitioning. Defaulting to v_hirsh/v_free = bulk_value')
                     print(error_tail + '\n')
-
-        # Set the default value for hirshfeld-bulk partitioning
-        self.hirbulk = hirbulk
-        self.hirlast = hirlast
-
-        # Set the reset-value
-        self.reset = reset
 
         # Print a Summary of the Configuration of QMMM-Calculator
         print (' +----------------** QMME SUMMARY **----------------+\n |')
@@ -318,6 +322,9 @@ class qmme(Calculator):
 
         self.nopt = 0
         self.hirlog = hirlog
+
+        # Set the reset-value
+        self.reset = reset
 
         Calculator.__init__(self, restart, ignore_bad_restart_file,
                             label, atoms=atoms, **kwargs)
@@ -715,13 +722,15 @@ class qmme(Calculator):
                     nelem -= 1
                 # set to the bulk value
                 elif (self.qm_hirshpart[atom] == 0):
-                    self.qm_hirshpart[atom] = self.hirbulk
+                    self.qm_hirshpart[atom] = self.hirbulk[0]
 
         # If we requested to overwrite particular atoms the
         # hirshfeld-bulk-value then is done here
-        if any(self.hirlast):
-            s = slice(self.hirlast[0], self.hirlast[1])
-            self.qm_hirshpart[s] = [self.hirbulk] * (self.hirlast[1] - self.hirlast[0])
+        if hasattr(self, 'hirlast'):
+            for nhf, hirlast in enumerate(self.hirlast):
+                s = slice(hirlast[0], hirlast[1])
+                self.qm_hirshpart[s] = [self.hirbulk[nhf]] * (hirlast[1] -
+                                                              hirlast[0])
 
         ## reset calculator flag for new evaluation
         self.solved_hvr_qm = [False,]*self.nqm_regions
@@ -737,10 +746,11 @@ class qmme(Calculator):
                         self.qm_hirshpart[atom]
                     nelem -= 1
             # also add the bulk values here if requested
-            if any(self.hirlast):
-                s = slice(self.hirlast[0], self.hirlast[1])
-                qm_hirshtmp[s] = [self.hirbulk] * (self.hirlast[1] -
-                                                   self.hirlast[0])
+            if hasattr(self, hirlast):
+                for nhf, hirlast in enumerate(self.hirlast):
+                    s = slice(hirlast[0], hirlast[1])
+                    qm_hirshtmp[s] = [self.hirbulk[nhf]] * (hirlast[1] -
+                                                            hirlast[0])
 
             return qm_hirshtmp
 
