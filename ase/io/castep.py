@@ -120,7 +120,7 @@ def write_freeform(fd, outputobj):
 
 
 def write_cell(filename, atoms, positions_frac=False, castep_cell=None,
-               force_write=False):
+               force_write=False, elnes_species=None):
     """
     Wrapper function for the more generic write() functionality.
 
@@ -130,12 +130,12 @@ def write_cell(filename, atoms, positions_frac=False, castep_cell=None,
     from ase.io import write
 
     write(filename, atoms, positions_frac=positions_frac,
-          castep_cell=castep_cell, force_write=force_write)
+          castep_cell=castep_cell, force_write=force_write, elnes_species=elnes_species)
 
 
 def write_castep_cell(fd, atoms, positions_frac=False, force_write=False,
                       precision=6, magnetic_moments=None,
-                      castep_cell=None):
+                      castep_cell=None, elnes_species=None):
     """
     This CASTEP export function write minimal information to
     a .cell file. If the atoms object is a trajectory, it will
@@ -234,6 +234,12 @@ def write_castep_cell(fd, atoms, positions_frac=False, force_write=False,
         if labels[i].strip() not in ('NULL', ''):
             line += ' LABEL={0} '.format(labels[i])
         pos_block.append(line)
+
+    # GSM: modify element string for ELNES modules
+    if elnes_species is not None:
+	for num, line in enumerate(pos_block):
+	    if line.split()[0] == 'X':
+		pos_block[num] = line.replace('X', '{}:exc'.format(elnes_species))
 
     setattr(cell, pos_keyword, pos_block)
 
