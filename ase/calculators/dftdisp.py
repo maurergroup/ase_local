@@ -1,4 +1,4 @@
-import sdc
+from . import sdc
 #import switch
 import os
 import numpy as np
@@ -229,8 +229,8 @@ class dftdisp(Calculator):
                 elif (arg == 'sedc_pbc_g_skip'):
                     sdc.sdc_recode.sedc_pbc_g_skip = [0] * self.sedc_n_groups
                 else:
-                    print "You've been sloppy my friend. :) Variable:", arg, \
-                          " does not exist!"
+                    print("You've been sloppy my friend. :) Variable:", arg, \
+                          " does not exist!")
 
 
     # TODO: [ ] Is this the correct value to write to?

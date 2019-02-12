@@ -107,7 +107,7 @@ class Dftb(FileIOCalculator):
                     Driver_MaxForceComponent='1E-4',
                     Driver_MaxSteps=0,
                     Hamiltonian_SlaterKosterFiles_='Type2FileNames',
-                    Hamiltonian_SlaterKosterFiles_Prefix=slako_dir,
+                    Hamiltonian_SlaterKosterFiles_Prefix=self.slako_dir,
                     Hamiltonian_SlaterKosterFiles_Separator='"-"',
                     Hamiltonian_SlaterKosterFiles_Suffix='".skf"',
                     Hamiltonian_MaxAngularMomentum_=''
@@ -116,7 +116,7 @@ class Dftb(FileIOCalculator):
                 self.default_parameters = dict(
                     Hamiltonian_='DFTB',
                     Hamiltonian_SlaterKosterFiles_='Type2FileNames',
-                    Hamiltonian_SlaterKosterFiles_Prefix=slako_dir,
+                    Hamiltonian_SlaterKosterFiles_Prefix=self.slako_dir,
                     Hamiltonian_SlaterKosterFiles_Separator='"-"',
                     Hamiltonian_SlaterKosterFiles_Suffix='".skf"'
                 )
@@ -209,7 +209,7 @@ class Dftb(FileIOCalculator):
 
         self.calculate_forces = calculate_forces
 
-    def write_dftb_in(self, filename):
+    def write_dftb_in(self, filename='dftb_in.hsd'):
         """ Write the innput file for the dftb+ calculation.
             Geometry is taken always from the file 'geo_end.gen'.
         """
