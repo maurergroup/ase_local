@@ -206,7 +206,7 @@ class Aims(FileIOCalculator):
     __outfilename_default = 'aims.out'
 
     implemented_properties = ['energy', 'forces', 'stress', 'dipole', \
-            'magmom','hirsh_volrat','friction']
+            'magmom','hirsh_volrat', 'hirsh_charge', 'friction']
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, cubes=None, radmul=None,
@@ -573,7 +573,8 @@ class Aims(FileIOCalculator):
         self.read_energy()
         if ('output') in self.parameters:
             if ('hirshfeld') in self.parameters['output']:
-                self.get_hirsh_volrat()
+                self.read_hirsh_volrat()
+                self.read_hirsh_charge()
         if ('compute_forces' in self.parameters or
             'sc_accuracy_forces' in self.parameters):
             self.read_forces()
@@ -720,6 +721,12 @@ class Aims(FileIOCalculator):
                 raise NotImplementedError
         return FileIOCalculator.get_property(self, 'hirsh_volrat', atoms)
     
+    def get_hirsh_charge(self,atoms):
+        if ('output' in self.parameters and
+           'hirshfeld' not in self.parameters['output']):
+                raise NotImplementedError
+        return FileIOCalculator.get_property(self, 'hirsh_charge', atoms)
+    
     def get_friction_tensor(self,atoms):
         if ('calculate_friction' not in self.parameters):
                 raise NotImplementedError
@@ -792,8 +799,18 @@ class Aims(FileIOCalculator):
                 v_hirsh_tmp = float(line.split()[4])
                 hirsh_volrat.append(v_hirsh_tmp / v_free_tmp)
 
+    def read_hirsh_charge(self):
+        infile = open(self.out, 'r')
+        lines = infile.readlines()
+        infile.close()
+        hirsh_charge = []
+        for line in lines:
+            if ('|   Hirshfeld charge        :' in line):
+                h_charge_tmp = float(line.split()[4])
+                hirsh_charge.append(h_charge_tmp)
+
         # Save in internal variable
-        self.results['hirsh_volrat'] = hirsh_volrat
+        self.results['hirsh_charge'] = hirsh_charge
 
     def get_number_of_iterations(self):
         return self.read_number_of_iterations()
