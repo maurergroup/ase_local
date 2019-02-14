@@ -49,7 +49,8 @@ class SiestaParameters(Parameters):
             atoms=None,
             restart=None,
             ignore_bad_restart_file=False,
-            fdf_arguments=None):
+            fdf_arguments=None,
+            atomic_coord_format='xyz'):
         kwargs = locals()
         kwargs.pop('self')
         Parameters.__init__(self, **kwargs)
@@ -58,7 +59,7 @@ class SiestaParameters(Parameters):
 class BaseSiesta(FileIOCalculator):
     """Calculator interface to the SIESTA code.
     """
-    allowed_basis_names = ['SZ', 'SZP', 'DZ', 'DZP']
+    allowed_basis_names = ['SZ', 'SZP', 'DZ', 'DZP', 'TZP']
     allowed_spins = ['UNPOLARIZED', 'COLLINEAR', 'FULL']
     allowed_xc = {}
     allowed_fdf_keywords = {}
@@ -79,19 +80,19 @@ class BaseSiesta(FileIOCalculator):
         """ASE interface to the SIESTA code.
 
         Parameters:
-           - label        : The base head of all created files.
+           - label        : The basename of all files created during SIESTA run.
            - mesh_cutoff  : Energy in eV.
                             The mesh cutoff energy for determining number of
-                            grid points.
-           - energy_shift : Energy in eVV
-                            The confining energy of the basis sets.
+                            grid points in the matrix-element calculation.
+           - energy_shift : Energy in eV
+                            The confining energy of the basis set generation.
            - kpts         : Tuple of 3 integers, the k-points in different
                             directions.
            - xc           : The exchange-correlation potential. Can be set to
                             any allowed value for either the Siesta
                             XC.funtional or XC.authors keyword. Default "LDA"
-           - basis_set    : "SZ"|"SZP"|"DZ"|"DZP", strings which specify the
-                            type of functions basis set.
+           - basis_set    : "SZ"|"SZP"|"DZ"|"DZP"|"TZP", strings which specify
+                            the type of functions basis set.
            - spin         : "UNPOLARIZED"|"COLLINEAR"|"FULL". The level of spin
                             description to be used.
            - species      : None|list of Species objects. The species objects
@@ -123,11 +124,18 @@ class BaseSiesta(FileIOCalculator):
                             separate line, while tuples will write each element
                             in a single line.  ASE units are assumed in the
                             input.
+           - atomic_coord_format: "xyz"|"zmatrix", strings to switch between the
+                            default way of entering the system's geometry (via
+                            the block AtomicCoordinatesAndAtomicSpecies) and
+                            a recent method via the block Zmatrix. The block
+                            Zmatrix allows to specify basic geometry constrains
+                            such as realized through the ASE classes FixAtom, 
+                            FixedLine and FixedPlane.
         """
 
         # Put in the default arguments.
         parameters = self.default_parameters.__class__(**kwargs)
-
+        
         # Setup the siesta command based on number of nodes.
         command = os.environ.get('SIESTA_COMMAND')
         if command is None:
@@ -154,6 +162,7 @@ class BaseSiesta(FileIOCalculator):
             self,
             command=command,
             **parameters)
+        
 
     def __getitem__(self, key):
         """Convenience method to retrieve a parameter as
@@ -331,7 +340,8 @@ class BaseSiesta(FileIOCalculator):
         # Here a test to check if the potential are in the right place!!!
         except RuntimeError as e:
             try:
-                with open(self.label + '.out', 'r') as f:
+                fname = os.path.join(self.directory, self.label+'.out')
+                with open(fname, 'r') as f:
                     lines = f.readlines()
                 debug_lines = 10
                 print('##### %d last lines of the Siesta output' % debug_lines)
@@ -342,6 +352,14 @@ class BaseSiesta(FileIOCalculator):
             except:
                 raise e
 
+    def set_directory(self, directory='.'):
+        """Set directory in which the calculation will be setup.
+
+        This is the most transparent solution for SIESTA calculator for which 
+        label should be a filename without path."""
+
+        self.directory = directory
+        
     def write_input(self, atoms, properties=None, system_changes=None):
         """Write input (fdf)-file.
         See calculator.py for further details.
@@ -361,7 +379,7 @@ class BaseSiesta(FileIOCalculator):
         if system_changes is None and properties is None:
             return
 
-        filename = self.label + '.fdf'
+        filename = os.path.join(self.directory, self.label+'.fdf')
 
         # On any changes, remove all analysis files.
         if system_changes is not None:
@@ -411,6 +429,8 @@ class BaseSiesta(FileIOCalculator):
         """Write directly given fdf-arguments.
         """
         fdf_arguments = self.parameters['fdf_arguments']
+        if fdf_arguments is None:
+            fdf_arguments = {}
         fdf_arguments["XC.functional"], \
             fdf_arguments["XC.authors"] = self.parameters['xc']
         energy_shift = self['energy_shift']
@@ -436,7 +456,7 @@ class BaseSiesta(FileIOCalculator):
 
     def remove_analysis(self):
         """ Remove all analysis files"""
-        filename = self.label + '.RHO'
+        filename = os.path.join(self.directory, self.label + '.RHO')
         if os.path.exists(filename):
             os.remove(filename)
 
@@ -486,6 +506,22 @@ class BaseSiesta(FileIOCalculator):
             - f:     An open file object.
             - atoms: An atoms object.
         """
+        af = self.parameters.atomic_coord_format.lower()
+        if af=='xyz':
+            self._write_atomic_coordinates_xyz(f, atoms)
+        elif af=='zmatrix':
+            self._write_atomic_coordinates_zmatrix(f, atoms)
+        else:
+            raise RuntimeError('Unknown atomic_coord_format: {}'.format(af))			
+
+
+    def _write_atomic_coordinates_xyz(self, f, atoms):
+        """Write atomic coordinates.
+
+        Parameters:
+            - f:     An open file object.
+            - atoms: An atoms object.
+        """
         species, species_numbers = self.species(atoms)
         f.write('\n')
         f.write('AtomicCoordinatesFormat  Ang\n')
@@ -507,6 +543,61 @@ class BaseSiesta(FileIOCalculator):
             f.write('%endblock AtomicCoordinatesOrigin\n')
             f.write('\n')
 
+    def _write_atomic_coordinates_zmatrix(self, f, atoms):
+        """Write atomic coordinates in Z-matrix format.
+
+        Parameters:
+            - f:     An open file object.
+            - atoms: An atoms object.
+        """
+        species, species_numbers = self.species(atoms)
+        f.write('\n')
+        f.write('ZM.UnitsLength   Ang\n')
+        f.write('%block Zmatrix\n')
+        f.write('  cartesian\n')
+        fstr = "{:5d}" + "{:20.10f}" * 3 + "{:3d}" * 3 + "{:7d} {:s}\n"
+        a2constr = self.make_xyz_constraints(atoms)
+        a2p,a2s = atoms.get_positions(), atoms.get_chemical_symbols()
+        for ia, (sp,xyz,ccc,sym) in enumerate(zip(species_numbers, a2p, a2constr, a2s)):
+            f.write( fstr.format(sp, xyz[0], xyz[1], xyz[2], ccc[0], ccc[1], ccc[2], ia+1, sym) )
+        f.write('%endblock Zmatrix\n')
+
+        origin = tuple( -atoms.get_celldisp().flatten() )
+        if any(origin):
+            f.write('%block AtomicCoordinatesOrigin\n')
+            f.write('     %.4f  %.4f  %.4f\n' % origin)
+            f.write('%endblock AtomicCoordinatesOrigin\n')
+            f.write('\n')
+
+    def make_xyz_constraints(self, atoms):
+        """ Create coordinate-resolved list of constraints [natoms, 0:3] 
+        The elements of the list must be integers 0 or 1
+          1 -- means that the coordinate will be updated during relaxation procedure
+          0 -- mains that the coordinate will be fixed during geometry relaxation
+        """
+        from ase.constraints import FixAtoms, FixedLine, FixedPlane
+        import warnings, sys
+        
+        a = atoms
+        a2c = np.ones((len(a), 3), dtype = int)
+        for c in a.constraints:
+            if isinstance(c, FixAtoms):
+                a2c[c.get_indices()] = 0
+            elif isinstance(c, FixedLine):
+                norm_dir = c.dir / np.linalg.norm(c.dir)
+                if ( max(norm_dir) - 1.0 ) > 1e-6:
+                    raise RuntimeError('norm_dir: {} -- must be one of the Cartesian axes...'.format(norm_dir))
+                a2c[c.a] = norm_dir.round().astype(int)
+            elif isinstance(c, FixedPlane):
+                norm_dir = c.dir / np.linalg.norm(c.dir)
+                if ( max(norm_dir) - 1.0 ) > 1e-6:
+                    raise RuntimeError('norm_dir: {} -- must be one of the Cartesian axes...'.format(norm_dir))
+                a2c[c.a] = abs( 1 - norm_dir.round().astype(int) )
+            else:
+                warnings.warn('Constraint {} is ignored at {}'.format( str(c), sys._getframe().f_code ))
+        return a2c
+
+    
     def _write_kpts(self, f):
         """Write kpts.
 
@@ -593,12 +684,14 @@ class BaseSiesta(FileIOCalculator):
             if spec['ghost']:
                 name.insert(-1, 'ghost')
                 atomic_number = -atomic_number
+
             name = '.'.join(name)
+            symlinkname = self.directory+"/"+name
 
             if join(os.getcwd(), name) != pseudopotential:
-                if islink(name) or isfile(name):
-                    os.remove(name)
-                os.symlink(pseudopotential, name)
+                if islink(symlinkname) or isfile(symlinkname):
+                    os.remove(symlinkname)
+                os.symlink(pseudopotential, symlinkname)
 
             if not spec['excess_charge'] is None:
                 atomic_number += 200
@@ -689,10 +782,10 @@ class BaseSiesta(FileIOCalculator):
             if spec['pseudopotential'] is None:
                 if self.pseudo_qualifier() == '':
                     label = symbol
-                    pseudopotential = label + '.psf'
+                    pseudopotential = os.path.join(self.directory, label + '.psf')
                 else:
                     label = '.'.join([symbol, self.pseudo_qualifier()])
-                    pseudopotential = label + '.psf'
+                    pseudopotential = os.path.join(self.directory, label + '.psf')
             else:
                 pseudopotential = spec['pseudopotential']
                 label = os.path.basename(pseudopotential)
@@ -709,8 +802,9 @@ class BaseSiesta(FileIOCalculator):
             label = '.'.join(np.array(name.split('.'))[:-1])
 
             if label not in self.results['ion']:
-                fname = label + '.ion.xml'
-                self.results['ion'][label] = get_ion(fname)
+                fname = os.path.join(self.directory, label + '.ion.xml')
+                if os.path.isfile(fname):
+                    self.results['ion'][label] = get_ion(fname)
 
     def read_hsx(self):
         """
@@ -720,17 +814,12 @@ class BaseSiesta(FileIOCalculator):
         'is_gamma', 'sc_orb2uc_orb', 'row2nnzero', 'sparse_ind2column',
         'H_sparse', 'S_sparse', 'aB2RaB_sparse', 'total_elec_charge', 'temp'
         """
-
-        import warnings
         from ase.calculators.siesta.import_functions import readHSX
 
-        filename = self.label + '.HSX'
+        filename = os.path.join(self.directory, self.label + '.HSX')
         if isfile(filename):
             self.results['hsx'] = readHSX(filename)
         else:
-            warnings.warn(filename + """ does not exist =>
-                                     sieta.results["hsx"]=None""",
-                                     UserWarning)
             self.results['hsx'] = None
 
     def read_dim(self):
@@ -740,17 +829,12 @@ class BaseSiesta(FileIOCalculator):
         'natoms_sc', 'norbitals_sc', 'norbitals', 'nspin',
         'nnonzero', 'natoms_interacting'
         """
-
-        import warnings
         from ase.calculators.siesta.import_functions import readDIM
 
-        filename = self.label + '.DIM'
+        filename = os.path.join(self.directory, self.label + '.DIM')
         if isfile(filename):
             self.results['dim'] = readDIM(filename)
         else:
-            warnings.warn(filename + """does not exist =>
-                                     sieta.results["dim"]=None""",
-                                     UserWarning)
             self.results['dim'] = None
 
     def read_pld(self, norb, natms):
@@ -760,17 +844,12 @@ class BaseSiesta(FileIOCalculator):
         'max_rcut', 'orb2ao', 'orb2uorb', 'orb2occ', 'atm2sp',
         'atm2shift', 'coord_sc', 'cell', 'nunit_cells'
         """
-
-        import warnings
         from ase.calculators.siesta.import_functions import readPLD
 
-        filename = self.label + '.PLD'
+        filename = os.path.join(self.directory, self.label + '.PLD')
         if isfile(filename):
             self.results['pld'] = readPLD(filename, norb, natms)
         else:
-            warnings.warn(filename + """ does not exist =>
-                                     sieta.results["pld"]=None""",
-                                     UserWarning)
             self.results['pld'] = None
 
     def read_wfsx(self):
@@ -778,35 +857,31 @@ class BaseSiesta(FileIOCalculator):
         Read the siesta WFSX file
         Return a namedtuple with the following arguments:
         """
-
-        import warnings
         from ase.calculators.siesta.import_functions import readWFSX
+        
+        fname_woext = os.path.join(self.directory, self.label)
 
-        if isfile(self.label + '.WFSX'):
-            filename = self.label + '.WFSX'
+        if isfile(fname_woext + '.WFSX'):
+            filename = fname_woext + '.WFSX'
             self.results['wfsx'] = readWFSX(filename)
-        elif isfile(self.label + '.fullBZ.WFSX'):
-            filename = self.label + '.fullBZ.WFSX'
+        elif isfile(fname_woext + '.fullBZ.WFSX'):
+            filename = fname_woext + '.fullBZ.WFSX'
             readWFSX(filename)
             self.results['wfsx'] = readWFSX(filename)
         else:
-            filename = self.label + '.WFSX or ' + self.label + '.fullBZ.WFSX'
-            warnings.warn(filename + """ does not exist =>
-                                     sieta.results["wfsx"]=None""",
-                                     UserWarning)
             self.results['wfsx'] = None
 
     def read_pseudo_density(self):
-        """Read the density if it is there.
-        """
-        filename = self.label + '.RHO'
+        """Read the density if it is there."""
+        filename = os.path.join(self.directory, self.label + '.RHO')
         if isfile(filename):
             self.results['density'] = read_rho(filename)
 
     def read_number_of_grid_points(self):
-        """Read number of grid points from SIESTA's text-output file.
-        """
-        with open(self.label + '.out', 'r') as f:
+        """Read number of grid points from SIESTA's text-output file. """
+        
+        fname = os.path.join(self.directory, self.label + '.out')
+        with open(fname, 'r') as f:
             for line in f:
                 line = line.strip().lower()
                 if line.startswith('initmesh: mesh ='):
@@ -819,7 +894,8 @@ class BaseSiesta(FileIOCalculator):
     def read_energy(self):
         """Read energy from SIESTA's text-output file.
         """
-        with open(self.label + '.out', 'r') as f:
+        fname = os.path.join(self.directory, self.label + '.out')
+        with open(fname, 'r') as f:
             text = f.read().lower()
 
         assert 'final energy' in text
@@ -840,7 +916,8 @@ class BaseSiesta(FileIOCalculator):
     def read_forces_stress(self):
         """Read the forces and stress from the FORCE_STRESS file.
         """
-        with open('FORCE_STRESS', 'r') as f:
+        fname = os.path.join(self.directory, 'FORCE_STRESS')
+        with open(fname, 'r') as f:
             lines = f.readlines()
 
         stress_lines = lines[1:4]
@@ -868,11 +945,12 @@ class BaseSiesta(FileIOCalculator):
         """Read eigenvalues from the '.EIG' file.
         This is done pr. kpoint.
         """
-        assert os.access(self.label + '.EIG', os.F_OK)
-        assert os.access(self.label + '.KP', os.F_OK)
+        fname_woext = os.path.join(self.directory, self.label)
+        assert os.access(fname_woext + '.EIG', os.F_OK)
+        assert os.access(fname_woext + '.KP', os.F_OK)
 
         # Read k point weights
-        text = open(self.label + '.KP', 'r').read()
+        text = open(fname_woext + '.KP', 'r').read()
         lines = text.split('\n')
         n_kpts = int(lines[0].strip())
         self.weights = np.zeros((n_kpts,))
@@ -881,7 +959,7 @@ class BaseSiesta(FileIOCalculator):
             self.weights[i] = float(l[4])
 
         # Read eigenvalues and fermi-level
-        with open(self.label + '.EIG', 'r') as f:
+        with open(fname_woext + '.EIG', 'r') as f:
             text = f.read()
         lines = text.split('\n')
         e_fermi = float(lines[0].split()[0])
@@ -912,22 +990,24 @@ class BaseSiesta(FileIOCalculator):
         """Read dipole moment.
         """
         dipole = np.zeros([1, 3])
-        with open(self.label + '.out', 'r') as f:
+        fname_woext = os.path.join(self.directory, self.label)
+        with open(fname_woext + '.out', 'r') as f:
             for line in f:
                 if line.rfind('Electric dipole (Debye)') > -1:
                     dipole = np.array([float(f) for f in line.split()[5:8]])
         # debye to e*Ang
         self.results['dipole'] = dipole * 0.2081943482534
 
-    def get_polarizability_pyscf_inter(self, Edir=np.array([1.0, 0.0, 0.0]),
-                                       freq=np.arange(0.0, 10.0, 0.1),
-                                       units='au',
-                                       run_tddft=True,
-                                       fname="pol_tensor.npy", 
-                                       fname_nonin = "noninpol_tensor.npy", **kw):
+    def pyscf_tddft(self, Edir=np.array([1.0, 0.0, 0.0]),
+                          freq=np.arange(0.0, 10.0, 0.1),
+                          units='au',
+                          run_tddft=True,
+                          save_kernel = True,
+                          kernel_name = "tddft_kernel.npy",
+                          fname="pol_tensor.npy", 
+                          fname_nonin = "noninpol_tensor.npy", **kw):
         """
-        Calculate the interacting polarizability of a molecule using
-        TDDFT calculation from the pyscf-nao library.
+        Perform TDDFT calculation using the pyscf.nao module for a molecule.
 
         Parameters
         ----------
@@ -939,7 +1019,7 @@ class BaseSiesta(FileIOCalculator):
             or nm**2
         run_tddft: to run the tddft_calculation or not
         fname: str
-            Name of file name for polariazbility tensor.
+            Name of input file name for polariazbility tensor.
             if run_tddft is True: output file
             if run_tddft is False: input file
 
@@ -947,10 +1027,11 @@ class BaseSiesta(FileIOCalculator):
 
         Returns
         -------
-        freq : array like
+            Add to the self.results dict the following items:
+        freq range: array like
             array of dimension (nff) containing the frequency range in eV.
 
-        self.results['polarizability nonin'], array like (complex)
+        polarizability nonin: array like (complex)
             array of dimension (nff, 3, 3) with nff the frequency number,
             the second and third dimension are the matrix elements of the
             non-interactive polarizability::
@@ -958,12 +1039,18 @@ class BaseSiesta(FileIOCalculator):
                 P_xx, P_xy, P_xz, Pyx, .......
 
 
-        self.results['polarizability'], array like (complex)
+        polarizability: array like (complex)
             array of dimension (nff, 3, 3) with nff the frequency number,
             the second and third dimension are the matrix elements of the
             interactive polarizability::
 
                 P_xx, P_xy, P_xz, Pyx, .......
+
+        density change nonin: array like (complex)
+            contains the non interacting density change in product basis
+
+        density change inter: array like (complex)
+            contains the interacting density change in product basis
 
         References
         ----------
@@ -1028,19 +1115,21 @@ class BaseSiesta(FileIOCalculator):
             from ase.units import Ha
 
             tddft = tddft_iter(**kw)
+            if save_kernel:
+                np.save(kernel_name, tddft.kernel)
 
             omegas = freq / Ha + 1j * tddft.eps
             tddft.comp_dens_nonin_along_Eext(omegas, Eext=Edir)
             tddft.comp_dens_inter_along_Eext(omegas, Eext=Edir)
 
-            # save polarizability tensor to files
-            np.save(fname_nonin, -tddft.p0_mat)
-            np.save(fname, -tddft.p_mat)
-
+            # save polarizability tensor and density change to files
+            self.results["freq range"] = freq
             self.results['polarizability nonin'] = np.zeros((freq.size, 3, 3),
                                                 dtype=tddft.p0_mat.dtype)
-            self.results['polarizability'] = np.zeros((freq.size, 3, 3),
+            self.results['polarizability inter'] = np.zeros((freq.size, 3, 3),
                                                 dtype=tddft.p_mat.dtype)
+            self.results["density change nonin"] = tddft.dn0
+            self.results["density change inter"] = tddft.dn
             for xyz1 in range(3):
                 for xyz2 in range(3):
                     if units == 'nm**2':
@@ -1049,11 +1138,11 @@ class BaseSiesta(FileIOCalculator):
                         p = pol2cross_sec(-tddft.p_mat[xyz1, xyz2, :],
                                           freq)
                         self.results['polarizability nonin'][:, xyz1, xyz2] = p0
-                        self.results['polarizability'][:, xyz1, xyz2] = p
+                        self.results['polarizability inter'][:, xyz1, xyz2] = p
                     else:
                         self.results['polarizability nonin'][:, xyz1, xyz2] = \
                                                 -tddft.p0_mat[xyz1, xyz2, :]
-                        self.results['polarizability'][:, xyz1, xyz2] = \
+                        self.results['polarizability inter'][:, xyz1, xyz2] = \
                                                 -tddft.p_mat[xyz1, xyz2, :]
 
         else:
@@ -1063,7 +1152,7 @@ class BaseSiesta(FileIOCalculator):
 
             self.results['polarizability nonin'] = np.zeros((freq.size, 3, 3),
                                                         dtype=p0_mat.dtype)
-            self.results['polarizability'] = np.zeros((freq.size, 3, 3),
+            self.results['polarizability inter'] = np.zeros((freq.size, 3, 3),
                                                         dtype=p_mat.dtype)
 
             for xyz1 in range(3):
@@ -1073,14 +1162,164 @@ class BaseSiesta(FileIOCalculator):
                         p = pol2cross_sec(-p_mat[xyz1, xyz2, :], freq)
 
                         self.results['polarizability nonin'][:, xyz1, xyz2] = p0
-                        self.results['polarizability'][:, xyz1, xyz2] = p
+                        self.results['polarizability inter'][:, xyz1, xyz2] = p
                     else:
                         self.results['polarizability nonin'][:, xyz1, xyz2] = \
                                                         -p0_mat[xyz1, xyz2, :]
-                        self.results['polarizability'][:, xyz1, xyz2] = \
+                        self.results['polarizability inter'][:, xyz1, xyz2] = \
                                                         -p_mat[xyz1, xyz2, :]
 
-        return freq, self.results['polarizability nonin'], self.results['polarizability']
+    def pyscf_tddft_eels(self, velec = np.array([20.0, 0.0, 0.0]),
+                               b = np.array([0.0, 0.0, 0.0]),
+                               freq=np.arange(0.0, 10.0, 0.1),
+                               tddft = None,
+                               save_kernel = True,
+                               kernel_name = "tddft_kernel.npy",
+                               tmp_fname = None,
+                               **kw):
+        """
+        Perform TDDFT calculation using the pyscf.nao module for a molecule.
+        The external pertubation is created by a electron moving at the velocity velec
+        and with an impact parameter b
+
+        Parameters
+        ----------
+        freq: array like
+            frequency range for which the polarizability should
+            be computed, in eV
+        velec: array like
+            velocity vector of the projectile
+        b: array like
+            offset vector of the projectile
+        tddft: tddft_tem class from a previous calculation
+        save_kernel: save the kernel for future use
+        kernel_name: name of the file for the kernel
+        tmp_fname: temporary name to save the eels spectra while running the calculations
+        kw: keywords for the tddft_tem function from pyscf
+
+        Returns
+        -------
+        tddft:
+            if running pyscf_tddft_eels in a loop over the velocity or the 
+            impact parameter, there is no point to initialize again the tddft
+            calculation (vertex and kernel will be the same)
+
+            Add to the self.results dict the following items:
+        freq range: array like
+            array of dimension (nff) containing the frequency range in eV.
+
+        eel spectra nonin: array like (complex)
+            array of dimension (nff) with nff the frequency number,
+
+
+        eel spectra inter: array like (complex)
+            array of dimension (nff) with nff the frequency number,
+
+        density change eels nonin: array like (complex)
+            contains the non interacting density change in product basis
+
+        density change eels inter: array like (complex)
+            contains the interacting density change in product basis
+
+        References
+        ----------
+        https://github.com/cfm-mpc/pyscf/tree/nao
+
+        Example
+        -------
+        from ase.units import Ry, eV, Ha
+        from ase.calculators.siesta import Siesta
+        from ase import Atoms
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        # Define the systems
+        Na8 = Atoms('Na8',
+                    positions=[[-1.90503810, 1.56107288, 0.00000000],
+                               [1.90503810, 1.56107288, 0.00000000],
+                               [1.90503810, -1.56107288, 0.00000000],
+                               [-1.90503810, -1.56107288, 0.00000000],
+                               [0.00000000, 0.00000000, 2.08495836],
+                               [0.00000000, 0.00000000, -2.08495836],
+                               [0.00000000, 3.22798122, 2.08495836],
+                               [0.00000000, 3.22798122, -2.08495836]],
+                    cell=[20, 20, 20])
+
+        # enter siesta input
+        siesta = Siesta(
+            mesh_cutoff=150 * Ry,
+            basis_set='DZP',
+            pseudo_qualifier='',
+            energy_shift=(10 * 10**-3) * eV,
+            fdf_arguments={
+                'SCFMustConverge': False,
+                'COOP.Write': True,
+                'WriteDenchar': True,
+                'PAO.BasisType': 'split',
+                'DM.Tolerance': 1e-4,
+                'DM.MixingWeight': 0.01,
+                'MaxSCFIterations': 300,
+                'DM.NumberPulay': 4,
+                'XML.Write': True})
+
+
+        Na8.set_calculator(siesta)
+        e = Na8.get_potential_energy()
+        tddft = siesta.pyscf_tddft_eels(label="siesta", jcutoff=7, iter_broadening=0.15/Ha,
+                    xc_code='LDA,PZ', tol_loc=1e-6, tol_biloc=1e-7, freq = np.arange(0.0, 5.0, 0.05))
+
+        # plot eel spectra
+        fig = plt.figure(1)
+        ax1 = fig.add_subplot(121)
+        ax2 = fig.add_subplot(122)
+        ax1.plot(siesta.results["freq range"], siesta.results["eel spectra nonin"].imag)
+        ax2.plot(siesta.results["freq range"], siesta.results["eel spectra inter"].imag)
+
+        ax1.set_xlabel(r"$\omega$ (eV)")
+        ax2.set_xlabel(r"$\omega$ (eV)")
+
+        ax1.set_ylabel(r"Im($P_{xx}$) (au)")
+        ax2.set_ylabel(r"Im($P_{xx}$) (au)")
+
+        ax1.set_title(r"Non interacting")
+        ax2.set_title(r"Interacting")
+
+        fig.tight_layout()
+
+        plt.show()
+
+        """
+
+
+        from pyscf.nao import tddft_tem
+        from ase.units import Ha
+
+        assert velec.size == 3
+        assert b.size == 3
+
+        if tddft is None:
+            self.results["freq range"] = freq
+            omegas = freq / Ha
+
+            # for eels, omega is real array
+            tddft = tddft_tem(freq = omegas, **kw)
+            if save_kernel:
+                np.save(kernel_name, tddft.kernel)
+
+
+        self.results['eel spectra nonin'] = tddft.get_spectrum_nonin(velec=velec,
+                                                                  beam_offset = b, 
+                                                                  tmp_fname=tmp_fname)
+
+        self.results['eel spectra inter'] = tddft.get_spectrum_inter(velec=velec,
+                                                                  beam_offset = b,
+                                                                  tmp_fname=tmp_fname)
+
+        self.results["density change eels nonin"] = tddft.dn0
+        self.results["density change eels inter"] = tddft.dn
+
+        return tddft
+
 
     def get_polarizability_mbpt(self, mbpt_inp=None,
                                 output_name='mbpt_lcao.out',

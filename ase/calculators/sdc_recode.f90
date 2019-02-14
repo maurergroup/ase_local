@@ -387,6 +387,8 @@ real (kind=sedc_rk),dimension(:),allocatable,public,save :: sedc_ts_veff_div_vfr
 
 ! latest values for vdW-TS, PRL 102, 073005 (2009)
 !
+! Mitch: Latest values for Lanthanoids from Alexander Tkatchenko / Vivekanand
+!        Gobre, private communication (TS-scheme!)
 real (kind=sedc_rk),dimension(param_array_size),parameter :: alpha_ts = (Bohr_to_Ang ** 3) * (/ &
 & 4.50,                                                                                  1.38, &
 &164.2, 38.0,                                                   21.0,12.0, 7.4, 5.4, 3.8,2.67, &
@@ -394,7 +396,7 @@ real (kind=sedc_rk),dimension(param_array_size),parameter :: alpha_ts = (Bohr_to
 &292.9,160.0,120.0,98.0,84.0,78.0,63.0,56.0,50.0,48.0,42.0,40.0,60.0,41.0,29.0,25.0,20.0,16.8, &
 &319.2,199.0, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,56.1,23.68,50.6,39.7,75.0,60.0,44.0,37.65,35.0,27.3, &
 & nnnn, 275.0, &
-& nnnn, nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
+& 213.7,204.7,215.8,208.4,200.2,192.1,184.2,158.3,169.5,164.64,156.3,150.2,144.3,138.9,137.2, &
 & nnnn, nnnn, nnnn,nnnn,nnnn,42.51,39.68,36.5,33.9,nnnn,61.8,49.02,nnnn,nnnn,nnnn, &
 & nnnn, nnnn, &
 & nnnn, nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
@@ -407,7 +409,7 @@ real (kind=sedc_rk),dimension(param_array_size),parameter :: C6i_ts = Ha_to_eV *
 & 3897.0,2221.0,1383.0,1044.0,832.0,602.0,552.0,482.0,408.0,373.0,253.0,284.0,498.0,354.0,246.0,210.0,162.0,129.6, &
 & 4691.0,3170.0,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn,469.0,157.5,339.0, 452.0,779.0,659.0,492.0,396.0,385.0,285.9, &
 &   nnnn,5727.0, &
-&   nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn,nnnn, &
+& 3884.5,3708.33,3911.84,3908.75,3847.68,3708.69,3511.71,2781.53,3124.41,2984.29,2839.95,2724.12,2576.78,2387.53,2371.80, &
 &   nnnn,  nnnn,  nnnn,  nnnn, nnnn,359.1,347.1,298.0,392.0, nnnn,697.0,571.0, nnnn, nnnn,nnnn, &
 &   nnnn,  nnnn, &
 &   nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn,nnnn, &
@@ -420,7 +422,7 @@ real (kind=sedc_rk),dimension(param_array_size),parameter :: R0i_ts = Bohr_to_An
 & 3.71,4.65,4.59,4.51,4.44,3.99,3.97,4.23,4.18,3.82,3.76,4.02,4.19,4.20,4.11,4.04,3.93,3.82, &
 & 3.72,4.54,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,3.95,3.66,3.82,3.99,nnnn,nnnn,nnnn,4.22,4.17,4.08, &
 & nnnn,4.77, &
-& nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
+& 3.16,3.26,3.28,3.30,3.27,3.32,3.40,3.62,3.42,3.26,3.24,3.30,3.26,3.22,3.20, &
 & nnnn,nnnn,nnnn,nnnn,nnnn,4.00,3.92,3.86,3.98,nnnn,4.31,4.32,nnnn,nnnn,nnnn, &
 & nnnn,nnnn, &
 & nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
@@ -432,6 +434,10 @@ real (kind=sedc_rk),dimension(param_array_size),parameter :: R0i_ts = Bohr_to_An
 ! in Ha*bohr**6, bohr**3 and in bohr
 !Also the Hirshfeld volume has to be put in manually in bohr**3
 !The periodic table data of TS is still put, but only to be overwritten!
+
+!
+! Mitch: Latest values for Lanthanoids from Alexander Tkatchenko / Vivekanand
+!        Gobre, private communication (TS-scheme - as adsorbate only!)
 
   integer,parameter   :: n_param_ar_tssurf = 3
   real (kind=sedc_rk) :: SR_tssurf = 0.0_sedc_rk, d_tssurf = 0.0_sedc_rk
@@ -446,8 +452,8 @@ real (kind=sedc_rk),dimension(param_array_size),parameter :: alpha_tssurf = (Boh
 & nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,10.22,10.88,13.77,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,13.90,15.36, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn, nnnn, &
-& nnnn, nnnn, nnnn,nnnn,nnnn,nnnn, nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
-& nnnn, nnnn, nnnn,nnnn,nnnn,nnnn,14.45,15.62,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
+& 213.7,204.7,215.8,208.4,200.2,192.1,184.2,158.3,169.5,164.64,156.3,150.2,144.3,138.9,137.2, &
+& nnnn, nnnn, nnnn,nnnn,nnnn,13.2,14.45,15.62,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn, nnnn, &
 & nnnn, nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn, nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn /)
@@ -459,8 +465,8 @@ real (kind=sedc_rk),dimension(param_array_size),parameter :: C6i_tssurf = Ha_to_
 & nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, 59.2, 58.9,46.0,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn, nnnn,102.0,122.0,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn,  nnnn, &
-& nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, &
-& nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn, 120.5, 133.9, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, &
+& 3884.5,3708.33,3911.84,3908.75,3847.68,3708.69,3511.71,2781.53,3124.41,2984.29,2839.95,2724.12,2576.78,2387.53,2371.80, &
+& nnnn,  nnnn,  nnnn,  nnnn, nnnn, 98.0, 120.5, 133.9, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, &
 & nnnn,  nnnn, &
 & nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn, nnnn,nnnn, &
 & nnnn,  nnnn,  nnnn,  nnnn, nnnn, nnnn, nnnn, nnnn, nnnn /)
@@ -472,8 +478,8 @@ real (kind=sedc_rk),dimension(param_array_size),parameter :: R0i_tssurf = Bohr_t
 & nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,2.28, 2.40, 2.82,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,3.06, 2.57, nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn, nnnn, &
-& nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
-& nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,2.80,2.91,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
+& 3.16,3.26,3.28,3.30,3.27,3.32,3.40,3.62,3.42,3.26,3.24,3.30,3.26,3.22,3.20, &
+& nnnn,nnnn,nnnn,nnnn,nnnn,2.71,2.80,2.91,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn,nnnn, &
 & nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn, &
 & nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn,nnnn /)

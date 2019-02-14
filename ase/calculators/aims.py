@@ -76,6 +76,7 @@ string_keys = [
     'fo_embedding',
     'run_command',
     'calculate_friction',
+    'plus_u',
 ]
 
 int_keys = [
@@ -279,6 +280,8 @@ class Aims(FileIOCalculator):
             File into which the stdout of the FHI aims run is piped into. Note
             that this will be only of any effect, if the <run_command> does not
             yet contain a '>' directive.
+        plus_u : dict
+            For DFT+U. Adds a +U term to one specific shell of the species.
 
         kwargs : dict
             Any of the base class arguments.
@@ -497,7 +500,7 @@ class Aims(FileIOCalculator):
                      'List of parameters used to initialize the calculator:',
                      ]:
             output.write('# ' + line + '\n')
-        for p,v in self.parameters.iteritems():
+        for p, v in self.parameters.items():
             s = '#     {} : {}\n'.format(p, v)
             output.write(s)
         output.write(lim + '\n')
@@ -519,6 +522,7 @@ class Aims(FileIOCalculator):
                 continue
             elif key == 'restart_aims':
                 output.write('%-35s%s\n' % ('restart', value))
+            elif key == 'plus_u':
                 continue
             elif key == 'smearing':
                 name = self.parameters.smearing[0].lower()
@@ -529,7 +533,7 @@ class Aims(FileIOCalculator):
                 if name == 'methfessel-paxton':
                     order = self.parameters.smearing[2]
                     output.write(' %d' % order)
-                output.write('\n' % order)
+                output.write('\n')
             elif key == 'output':
                 for output_type in value:
                     output.write('%-35s%s\n' % (key, output_type))
@@ -574,7 +578,10 @@ class Aims(FileIOCalculator):
         if ('output') in self.parameters:
             if ('hirshfeld') in self.parameters['output']:
                 self.read_hirsh_volrat()
+<<<<<<< HEAD
                 self.read_hirsh_charge()
+=======
+>>>>>>> 0f69003d6f52bfc75225cf1372ad71ed74b0ebbc
         if ('compute_forces' in self.parameters or
             'sc_accuracy_forces' in self.parameters):
             self.read_forces()
@@ -627,6 +634,10 @@ class Aims(FileIOCalculator):
                 raise RuntimeError(
                     "Basis tier %i not found for element %s" %
                     (self.targettier, symbol))
+            if self.parameters.get('plus_u') is not None:
+                if symbol in self.parameters.plus_u.keys():
+                    control.write('plus_u %s \n' %
+                                  self.parameters.plus_u[symbol])
         control.close()
 
         if self.radmul is not None:
@@ -681,7 +692,7 @@ class Aims(FileIOCalculator):
         fin.close()
         fout.close()
         os.rename(newctrl, self.ctrlname)
-    
+
     def set_radial_multiplier(self):
         assert isinstance(self.radmul, int)
         newctrl = self.ctrlname +'.new'
@@ -714,12 +725,13 @@ class Aims(FileIOCalculator):
             'sc_accuracy_forces' not in self.parameters):
             raise PropertyNotImplementedError
         return FileIOCalculator.get_forces(self, atoms)
-    
-    def get_hirsh_volrat(self,atoms):
+
+    def get_hirsh_volrat(self):
         if ('output' in self.parameters and
            'hirshfeld' not in self.parameters['output']):
                 raise NotImplementedError
-        return FileIOCalculator.get_property(self, 'hirsh_volrat', atoms)
+
+        return FileIOCalculator.get_property(self, 'hirsh_volrat', self.atoms)
     
     def get_hirsh_charge(self,atoms):
         if ('output' in self.parameters and
@@ -727,6 +739,8 @@ class Aims(FileIOCalculator):
                 raise NotImplementedError
         return FileIOCalculator.get_property(self, 'hirsh_charge', atoms)
     
+
+
     def get_friction_tensor(self,atoms):
         if ('calculate_friction' not in self.parameters):
                 raise NotImplementedError
@@ -786,7 +800,7 @@ class Aims(FileIOCalculator):
             if line.rfind('Have a nice day') > -1:
                 converged = True
         return converged
-    
+
     def read_hirsh_volrat(self):
         infile = open(self.out, 'r')
         lines = infile.readlines()
@@ -1012,23 +1026,23 @@ class Aims(FileIOCalculator):
         for n in range(ndim):
             #collect index of atom
             line = lines[iline].split()
-            iatom = int(line[2])-1 
+            iatom = int(line[2])-1
             icart = int(line[4])-1
             friction_index[iatom*3+icart] = n
             iline += 1
             line = lines[iline].split()
             friction_tensor[n,:] = [float(value) for value in line]
             iline += 1
-        #now we have the calculated friction tensor elements and 
+        #now we have the calculated friction tensor elements and
         #need to embedd them into the full system tensor
         friction_tensor_full = np.zeros([3*natoms,3*natoms],dtype=np.float)
         for i in range(3*natoms):
             for j in range(3*natoms):
                 if (friction_index[i]>=0 and friction_index[j]>=0):
                     friction_tensor_full[i,j] = \
-                        friction_tensor[friction_index[i],friction_index[j]] 
+                        friction_tensor[friction_index[i],friction_index[j]]
         #return friction tensor in 1/ASE time units
-        self.results['friction'] = friction_tensor_full/ps 
+        self.results['friction'] = friction_tensor_full/ps
 
 class AimsCube:
     "Object to ensure the output of cube files, can be attached to Aims object"

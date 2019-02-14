@@ -8,12 +8,66 @@ import numpy as np
 from ase.dft.kpoints import bandpath, monkhorst_pack
 
 
-class ReadError(Exception):
-    pass
+class CalculatorError(RuntimeError):
+    """Base class of error types related to ASE calculators."""
+
+
+class CalculatorSetupError(CalculatorError):
+    """Calculation cannot be performed with the given parameters.
+
+    Reasons to raise this errors are:
+      * The calculator is not properly configured
+        (missing executable, environment variables, ...)
+      * The given atoms object is not supported
+      * Calculator parameters are unsupported
+
+    Typically raised before a calculation."""
+
+
+class EnvironmentError(CalculatorSetupError):
+    """Raised if calculator is not properly set up with ASE.
+
+    May be missing an executable or environment variables."""
+
+
+class InputError(CalculatorSetupError):
+    """Raised if inputs given to the calculator were incorrect.
+
+    Bad input keywords or values, or missing pseudopotentials.
+
+    This may be raised before or during calculation, depending on
+    when the problem is detected."""
+
+
+class CalculationFailed(CalculatorError):
+    """Calculation failed unexpectedly.
+
+    Reasons to raise this error are:
+      * Calculation did not converge
+      * Calculation ran out of memory
+      * Segmentation fault or other abnormal termination
+      * Arithmetic trouble (singular matrices, NaN, ...)
+
+    Typically raised during calculation."""
+
+
+class SCFError(CalculationFailed):
+    """SCF loop did not converge."""
+
+
+class ReadError(CalculatorError):
+    """Unexpected irrecoverable error while reading calculation results."""
 
 
 class PropertyNotImplementedError(NotImplementedError):
-    pass
+    """Raised if a calculator does not implement the requested property."""
+
+
+class PropertyNotPresent(CalculatorError):
+    """Requested property is missing.
+
+    Maybe it was never calculated, or for some reason was not extracted
+    with the rest of the results, without being a fatal ReadError."""
 
 
 def compare_atoms(atoms1, atoms2, tol=1e-15):
@@ -54,7 +108,7 @@ names = ['abinit', 'aims', 'amber', 'asap', 'castep', 'cp2k', 'crystal',
          'exciting', 'fleur', 'gaussian', 'gpaw', 'gromacs', 'gulp',
          'hotbit', 'jacapo', 'lammpsrun',
          'lammpslib', 'lj', 'mopac', 'morse', 'nwchem', 'octopus', 'onetep',
-         'siesta', 'tip3p', 'turbomole', 'vasp']
+         'openmx', 'siesta', 'tip3p', 'turbomole', 'vasp']
 
 
 special = {'cp2k': 'CP2K',
@@ -71,6 +125,7 @@ special = {'cp2k': 'CP2K',
            'mopac': 'MOPAC',
            'morse': 'MorsePotential',
            'nwchem': 'NWChem',
+           'openmx': 'OpenMX',
            'tip3p': 'TIP3P'}
 
 
@@ -82,6 +137,8 @@ def get_calculator(name):
         from gpaw import GPAW as Calculator
     elif name == 'hotbit':
         from hotbit import Calculator
+    elif name == 'vasp2':
+        from ase.calculators.vasp import Vasp2 as Calculator
     else:
         classname = special.get(name, name.title())
         module = __import__('ase.calculators.' + name, {}, None, [classname])
@@ -325,7 +382,7 @@ class Calculator(object):
                 # Atoms were read from file.  Update atoms:
                 if not (equal(atoms.numbers, self.atoms.numbers) and
                         (atoms.pbc == self.atoms.pbc).all()):
-                    raise RuntimeError('Atoms not compatible with file')
+                    raise CalculatorError('Atoms not compatible with file')
                 atoms.positions = self.atoms.positions
                 atoms.cell = self.atoms.cell
 
@@ -442,13 +499,15 @@ class Calculator(object):
 
     def check_state(self, atoms, tol=1e-15):
         """Check for system changes since last calculation."""
-        return compare_atoms(self.atoms, atoms)
+        return compare_atoms(self.atoms, atoms, tol)
 
     def get_potential_energy(self, atoms=None, force_consistent=False):
         energy = self.get_property('energy', atoms)
         if force_consistent:
             if 'free_energy' not in self.results:
                 name = self.__class__.__name__
+                # XXX but we don't know why the energy is not there.
+                # We should raise PropertyNotPresent.  Discuss
                 raise PropertyNotImplementedError(
                     'Force consistent/free energy ("free_energy") '
                     'not provided by {0} calculator'.format(name))
@@ -561,7 +620,8 @@ class Calculator(object):
         return np.array([[numeric_force(atoms, a, i, d)
                           for i in range(3)] for a in range(len(atoms))])
 
-    def calculate_numerical_stress(self, atoms, d=1e-6, voigt=True):
+    def calculate_numerical_stress(self, atoms, d=1e-6, voigt=True,
+                                   force_consistent=True):
         """Calculate numerical stress using finite difference."""
 
         stress = np.zeros((3, 3), dtype=float)
@@ -572,11 +632,11 @@ class Calculator(object):
             x = np.eye(3)
             x[i, i] += d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eplus = atoms.get_potential_energy(force_consistent=True)
+            eplus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             x[i, i] -= 2 * d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eminus = atoms.get_potential_energy(force_consistent=True)
+            eminus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             stress[i, i] = (eplus - eminus) / (2 * d * V)
             x[i, i] += d
@@ -585,12 +645,12 @@ class Calculator(object):
             x[i, j] = d
             x[j, i] = d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eplus = atoms.get_potential_energy(force_consistent=True)
+            eplus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             x[i, j] = -d
             x[j, i] = -d
             atoms.set_cell(np.dot(cell, x), scale_atoms=True)
-            eminus = atoms.get_potential_energy(force_consistent=True)
+            eminus = atoms.get_potential_energy(force_consistent=force_consistent)
 
             stress[i, j] = (eplus - eminus) / (4 * d * V)
             stress[j, i] = stress[i, j]
@@ -644,7 +704,7 @@ class FileIOCalculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
         self.write_input(self.atoms, properties, system_changes)
         if self.command is None:
-            raise RuntimeError(
+            raise CalculatorSetupError(
                 'Please set ${} environment variable '
                 .format('ASE_' + self.name.upper() + '_COMMAND') +
                 'or supply the command keyword')
@@ -652,8 +712,9 @@ class FileIOCalculator(Calculator):
         errorcode = subprocess.call(command, shell=True, cwd=self.directory)
 
         if errorcode:
-            raise RuntimeError('{} in {} returned an error: {}'
-                               .format(self.name, self.directory, errorcode))
+            raise CalculationFailed('{} in {} returned an error: {}'
+                                    .format(self.name, self.directory,
+                                            errorcode))
         self.read_results()
 
     def write_input(self, atoms, properties=None, system_changes=None):

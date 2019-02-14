@@ -45,8 +45,10 @@ class mbdio(FileIOCalculator):
                   'mbd_scs_vacuum_axis')
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
-                 label=None, atoms=None, command=None, **kwargs):
+                 label=None, atoms=None, command=None, calculate_forces=True,
+                 **kwargs):
         self.command = command
+        self.calculate_forces = calculate_forces
         Calculator.__init__(self, restart, ignore_bad_restart_file,
                             label, atoms, **kwargs)
 
@@ -123,9 +125,12 @@ class mbdio(FileIOCalculator):
             print('Wohooo no energy for youhoooouu')
 
     def get_forces(self, apply_constraint=True):
-        self.results['forces'] = np.array([[self.calculate_numerical_forces(i, j)
-                                            for j in range(3)] for i in range(len(self.atoms))])
-        return self.results['forces']
+        if self.calculate_forces:
+            self.results['forces'] = np.array([[self.calculate_numerical_forces(i, j)
+                                                for j in range(3)] for i in range(len(self.atoms))])
+            return self.results['forces']
+        else:
+            return [0.] * self.atoms.get_number_of_atoms()
 
     def get_potential_energy(self, atoms=None):
         self.calculate(atoms)

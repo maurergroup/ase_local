@@ -20,10 +20,10 @@ Writing:
 
 >>> import numpy as np
 >>> import ase.io.ulm as ulm
->>> w = ulm.open('x.ulm', 'w')
->>> w.write(a=np.ones(7), b=42, c='abc')
->>> w.write(d=3.14)
->>> w.close()
+>>> with ulm.open('x.ulm', 'w') as w:
+...     w.write(a=np.ones(7), b=42, c='abc')
+...     w.write(d=3.14)
+
 
 Reading:
 
@@ -106,9 +106,10 @@ def writeint(fd, n, pos=None):
 
 
 def readints(fd, n):
-    a = np.fromstring(string=fd.read(int(n * 8)), dtype=np.int64, count=n)
+    a = np.frombuffer(fd.read(int(n * 8)), dtype=np.int64, count=n)
     if not np.little_endian:
-        a.byteswap(True)
+        # Cannot use in-place byteswap because frombuffer() returns readonly view
+        a = a.byteswap()
     return a
 
 
@@ -192,6 +193,12 @@ class Writer:
         self.nmissing = 0  # number of missing numbers
         self.shape = None
         self.dtype = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        self.close()
 
     def add_array(self, name, shape, dtype=float):
         """Add ndarray object.
@@ -391,6 +398,12 @@ class Reader:
 
         self._parse_data(data)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        self.close()
+
     def _parse_data(self, data):
         self._data = {}
         for name, value in data.items():
@@ -535,13 +548,13 @@ class NDArrayReader:
             a = np.fromfile(self.fd, self.dtype, count)
         else:
             # Not as fast, but works for reading from tar-files:
-            a = np.fromstring(self.fd.read(int(count * self.itemsize)),
+            a = np.frombuffer(self.fd.read(int(count * self.itemsize)),
                               self.dtype)
         a.shape = (stop - start,) + self.shape[1:]
         if step != 1:
             a = a[::step].copy()
         if self.little_endian != np.little_endian:
-            a.byteswap(True)
+            a = a.byteswap(inplace=a.flags.writeable) # frombuffer() returns readonly array
         if self.length_of_last_dimension is not None:
             a = a[..., :self.length_of_last_dimension]
         if self.scale != 1.0:
@@ -600,15 +613,25 @@ def copy(reader, writer, exclude=set(), name=''):
 
 
 class CLICommand:
-    short_description = 'Manipulate/show content of ulm-file'
+    """Manipulate/show content of ulm-file.
+
+    The ULM file format is used for ASE's trajectory files,
+    for GPAW's gpw-files and other things.
+
+    Example (show first image of a trajectory file):
+
+        ase ulm abc.traj -n 0 -v
+    """
 
     @staticmethod
     def add_arguments(parser):
         add = parser.add_argument
-        add('filename')
-        add('-n', '--index', type=int)
-        add('-d', '--delete', metavar='key')
-        add('-v', '--verbose', action='store_true')
+        add('filename', help='Name of ULM-file.')
+        add('-n', '--index', type=int,
+            help='Show only one index.  Default is to show all.')
+        add('-d', '--delete', metavar='key1,key2,...',
+            help='Remove key(s) from ULM-file.')
+        add('-v', '--verbose', action='store_true', help='More output.')
 
     @staticmethod
     def run(args):

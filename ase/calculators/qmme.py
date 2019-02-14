@@ -25,11 +25,13 @@ class qmme(Calculator):
                   'qm_pbcs',            # array of 3x1 boolean arrays
                   'mm_pbcs',            # array or 3x1 boolean arrays
                   'qm_cell',            # array or 3x3 arrays
-                  'mm_cell')            # array of 3x3 arrays
+                  'mm_cell',            # array of 3x3 arrays
+                  'hirbulk',            # array of floats
+                  'hirlast')            # array of tuples
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, logprfx=None,
-                 reuse=False, hirlog=False, **kwargs):
+                 reuse=False, hirlog=False, reset=True, **kwargs):
 
         """ Assign QM and MM calculators and regions.
 
@@ -68,6 +70,12 @@ class qmme(Calculator):
         mm_cell:            array of 3x3 arrays
             unit cell parameters for each MM region
 
+        hirbulk:            list of floats
+            hirshfeld ratio value for each of nhf_regions
+
+        hirlast:            list of 2-tuples
+            first and last atom belonging to each in nhf_regions
+
         """
 
         # Set any keyword arguments
@@ -85,36 +93,36 @@ class qmme(Calculator):
             if arg not in kwargs.keys():
                 if arg == 'nqm_regions':
                     if hasattr(self, 'qm_atoms'):
-                        print error_head
-                        print ' |  Keyword  nqm_regions  not specified,'
-                        print ' |  defaulting to len(qm_atoms).'
-                        print error_tail + '\n'
+                        print(error_head)
+                        print(' |  Keyword  nqm_regions  not specified,')
+                        print(' |  defaulting to len(qm_atoms).')
+                        print(error_tail + '\n')
                         self.nqm_regions = len(self.qm_atoms)
                     else:
-                        print error_head
-                        print ' |  Keyword  nqm_regions  not specified,'
-                        print ' |  defaulting to 0. No QM-regions detected!'
-                        print error_tail + '\n'
+                        print(error_head)
+                        print(' |  Keyword  nqm_regions  not specified,')
+                        print(' |  defaulting to 0. No QM-regions detected!')
+                        print(error_tail + '\n')
                         self.nqm_regions = 0
                 if arg == 'nmm_regions':
                     if hasattr(self, 'mm_atoms'):
-                        print error_head
-                        print ' |  Keyword  nmm_regions  not specified,'
-                        print ' |  defaulting to len(mm_atoms).'
-                        print error_tail + '\n'
+                        print(error_head)
+                        print(' |  Keyword  nmm_regions  not specified,')
+                        print(' |  defaulting to len(mm_atoms).')
+                        print(error_tail + '\n')
                         self.nmm_regions = len(self.mm_atoms)
                     elif hasattr(self, 'mm_mode') and \
                             hasattr(self, 'mm_calculators'):
-                            print error_head
-                            print ' |  Keyword  nmm_regions  not specified,'
-                            print ' |  defaulting to len(mm_calculators).'
-                            print error_tail + '\n'
+                            print(error_head)
+                            print(' |  Keyword  nmm_regions  not specified,')
+                            print(' |  defaulting to len(mm_calculators).')
+                            print(error_tail + '\n')
                             self.nmm_regions = len(self.mm_calculators)
                     else:
-                        print error_head
-                        print ' |  Keyword  nmm_regions  not specified,'
-                        print ' |  defaulting to 0. No MM-regions detected!'
-                        print error_tail + '\n'
+                        print(error_head)
+                        print(' |  Keyword  nmm_regions  not specified,')
+                        print(' |  defaulting to 0. No MM-regions detected!')
+                        print(error_tail + '\n')
                         self.nmm_regions = 0
                 if arg == 'qm_calculators':
                     if hasattr(self, 'qm_atoms'):
@@ -153,29 +161,29 @@ class qmme(Calculator):
                             'specified! Please specify mm_mode as either' +
                             'allatoms, complementary or explicit.\n')
                 if arg == 'qm_pbcs':
-                    print error_head
-                    print ' |  Keyword  qm_pbcs  not specified, QM regions will'
-                    print ' |  have the periodic boundary conditions of the'
-                    print ' |  whole system assigned to them.'
-                    print error_tail + '\n'
+                    print(error_head)
+                    print(' |  Keyword  qm_pbcs  not specified, QM regions will')
+                    print(' |  have the periodic boundary conditions of the')
+                    print(' |  whole system assigned to them.')
+                    print(error_tail + '\n')
                 if arg == 'mm_pbcs':
-                    print error_head
-                    print ' |  Keyword  mm_pbcs  not specified, MM regions will'
-                    print ' |  have the periodic boundary conditions of the'
-                    print ' |  whole system assigned to them.'
-                    print error_tail + '\n'
+                    print(error_head)
+                    print(' |  Keyword  mm_pbcs  not specified, MM regions will')
+                    print(' |  have the periodic boundary conditions of the')
+                    print(' |  whole system assigned to them.')
+                    print(error_tail + '\n')
                 if arg == 'qm_cell':
-                    print error_head
-                    print ' |  Keyword  qm_cell  not specified, QM regions will'
-                    print ' |  have the unit cell parameters of the'
-                    print ' |  whole system assigned to them.'
-                    print error_tail + '\n'
+                    print(error_head)
+                    print(' |  Keyword  qm_cell  not specified, QM regions will')
+                    print(' |  have the unit cell parameters of the')
+                    print(' |  whole system assigned to them.')
+                    print(error_tail + '\n')
                 if arg == 'mm_cell':
-                    print error_head
-                    print ' |  Keyword  mm_cell  not specified, MM regions will'
-                    print ' |  have the unit cell parameters of the'
-                    print ' |  whole system assigned to them.'
-                    print error_tail + '\n'
+                    print(error_head)
+                    print(' |  Keyword  mm_cell  not specified, MM regions will')
+                    print(' |  have the unit cell parameters of the')
+                    print(' |  whole system assigned to them.')
+                    print(error_tail + '\n')
 
         # Force user to specify atoms-object at QMMM-initialization
         # At the same time deliberately disable constraints within
@@ -188,13 +196,13 @@ class qmme(Calculator):
                                'object at initialization.\n')
 
         if logprfx is None and hirlog:
-            print error_head
-            print ' |  Keyword  logprfx  not specified! We will create'
-            print ' |  uniquely named logdirs for every calculator'
-            print ' |  and each iteration step.'
-            print ' |  Warning: This might make it difficult'
-            print ' |           to match logfiles to calculations.'
-            print error_tail + '\n'
+            print(error_head)
+            print(' |  Keyword  logprfx  not specified! We will create')
+            print(' |  uniquely named logdirs for every calculator')
+            print(' |  and each iteration step.')
+            print(' |  Warning: This might make it difficult')
+            print(' |           to match logfiles to calculations.')
+            print(error_tail + '\n')
 
             self.logprfx = strftime("%b-%d_%H%M%S_", gmtime()) + 'QMMM'
         else:
@@ -202,6 +210,10 @@ class qmme(Calculator):
 
         # Routines for logging and reuse of prior data
         self.reuse = reuse
+
+        # reset to v_hirsh/v_free = 1 if not give
+        if not hasattr(self, 'hirbulk'):
+            self.hirbulk = [1.0]
 
         if not self.reuse and hirlog:
             try:
@@ -226,71 +238,71 @@ class qmme(Calculator):
         # user about missing Hirshfeld-Treatment.
         if 'dftdisp' in str(self.mm_calculators):
             for qmcalc in self.qm_calculators:
-#                if "read_hirsh_volrat" not in dir(qmcalc):
-                 if not hasattr(qmcalc, 'get_hirsh_volrat'):
-                    print error_head
-                    print ' |  QM calculator ' + str(qmcalc.__class__.__name__) + \
-                          ' does not support Hirshfeld-'
-                    print ' |  paritioning. Defaulting to v_hirsh/v_free = 1'
-                    print error_tail + '\n'
+                 #if "read_hirsh_volrat" not in dir(qmcalc):
+                if not hasattr(qmcalc, 'get_hirsh_volrat'):
+                    print(error_head)
+                    print(' |  QM calculator ' + str(qmcalc.__class__.__name__) + \
+                          ' does not support Hirshfeld-')
+                    print(' |  partitioning. Defaulting to v_hirsh/v_free = bulk_value')
+                    print(error_tail + '\n')
 
         # Print a Summary of the Configuration of QMMM-Calculator
-        print ' +----------------** QMME SUMMARY **----------------+\n |'
+        print (' +----------------** QMME SUMMARY **----------------+\n |')
         if hirlog:
-            print ' |  QMMM calculator  ' + self.logprfx + '  initialized:'
+            print( ' |  QMMM calculator  ' + self.logprfx + '  initialized:')
         for n in range(self.nqm_regions):
-            print ' |    QM region %i: %s (atoms: %s)' \
+            print( ' |    QM region %i: %s (atoms: %s)' \
                 % (n, self.qm_calculators[n].__class__.__name__,
-                    str(self.qm_atoms[n]).strip('[]'))
+                    str(self.qm_atoms[n]).strip('[]')))
             try:
-                print ' |       PBCs     : %s' \
-                    % (str(self.qm_pbcs[n]).strip('[]'))
+                print( ' |       PBCs     : %s' \
+                    % (str(self.qm_pbcs[n]).strip('[]')))
             except:
-                print ' |       PBCs     : automatic '
+                print( ' |       PBCs     : automatic ')
             try:
                 tmp_cell = ''
                 for i in range(3):
                     tmp_cell += '\n |           ' + \
                         str(["%.3f" % elem for elem in self.qm_cell[n][i]])
-                print ' |       Unit Cell: ' + tmp_cell + '\n |'
+                print( ' |       Unit Cell: ' + tmp_cell + '\n |')
             except:
-                print ' |       Unit cell: automatic \n |'
+                print( ' |       Unit cell: automatic \n |')
         for n in range(self.nmm_regions):
             if self.mm_mode == 'explicit':
-                print ' |    MM region %i: %s (atoms: %s)' \
+                print( ' |    MM region %i: %s (atoms: %s)' \
                     % (n, self.mm_calculators[n].__class__.__name__,
-                        str(self.mm_atoms[n]).strip('[]'))
+                        str(self.mm_atoms[n]).strip('[]')))
                 try:
-                    print ' |       PBCs     : %s' \
-                        % (str(self.mm_pbcs[n]).strip('[]'))
+                    print( ' |       PBCs     : %s' \
+                        % (str(self.mm_pbcs[n]).strip('[]')))
                 except:
-                    print ' |       PBCs     : automatic '
+                    print( ' |       PBCs     : automatic ')
                 try:
                     tmp_cell = ''
                     for i in range(3):
                         tmp_cell += '\n|           ' + \
                             str(["%.3f" % elem for elem in self.mm_cell[n][i]])
-                    print ' |       Unit Cell: ' + tmp_cell + '\n |'
+                    print( ' |       Unit Cell: ' + tmp_cell + '\n |')
                 except:
-                    print ' |       Unit cell: automatic \n |'
+                    print( ' |       Unit cell: automatic \n |')
             else:
-                print ' |    MM region %i: %s (atoms: %s)' \
+                print( ' |    MM region %i: %s (atoms: %s)' \
                     % (n, self.mm_calculators[n].__class__.__name__,
-                        self.mm_mode)
+                        self.mm_mode))
                 try:
-                    print ' |       PBCs     : %s' \
-                        % (str(self.mm_pbcs[n]).strip('[]'))
+                    print( ' |       PBCs     : %s' \
+                        % (str(self.mm_pbcs[n]).strip('[]')))
                 except:
-                    print ' |       PBCs     : automatic '
+                    print( ' |       PBCs     : automatic ')
                 try:
                     tmp_cell = ''
                     for i in range(3):
                         tmp_cell += '\n|           ' + \
                             str(["%.3f" % elem for elem in self.mm_cell[n][i]])
-                    print ' |       Unit Cell: ' + tmp_cell + '\n |'
+                    print( ' |       Unit Cell: ' + tmp_cell + '\n |')
                 except:
-                    print ' |       Unit cell: automatic \n |'
-        print ' +--------------------------------------------------+\n'
+                    print( ' |       Unit cell: automatic \n |')
+        print( ' +--------------------------------------------------+\n')
 
         # Initialization of empty data structures of calculation results.
         # This is required for some internal reconstruction purposes and
@@ -311,6 +323,9 @@ class qmme(Calculator):
         self.nopt = 0
         self.hirlog = hirlog
 
+        # Set the reset-value
+        self.reset = reset
+
         Calculator.__init__(self, restart, ignore_bad_restart_file,
                             label, atoms=atoms, **kwargs)
 
@@ -325,9 +340,11 @@ class qmme(Calculator):
     def update_properties(self, atoms):
         """ check if already computed everything for this set of atoms. """
 
-        if not hasattr(self, 'atoms') or self.atoms != atoms:
-            self.generate_calculators(atoms)
-            self.calculate()
+        # if not hasattr(self, 'atoms') or self.atoms != atoms:
+        # just calculate it - have the calculators below check if they already
+        # know these coordinates, etc
+        self.generate_calculators(atoms)
+        self.calculate()
 
     def generate_calculators(self, atoms):
 
@@ -391,6 +408,10 @@ class qmme(Calculator):
            self.check_if_set_and_value('qm_atoms'):
             for iqmreg, qmreg in enumerate(self.qm_regions):
 
+                # reset the calculator
+                if self.reset:
+                    self.qm_calculators[iqmreg].reset()
+
                 # Jump in the appropriate directory and start calculation
                 if self.hirlog:
                     try:
@@ -415,6 +436,10 @@ class qmme(Calculator):
 
         if self.check_if_set_and_value('nmm_regions'):
             for immreg, mmreg in enumerate(self.mm_regions):
+
+                # reset the calculator
+                if self.reset:
+                    self.mm_calculators[immreg].reset()
 
                 # Jump in the appropriate directory and start calculation
                 if self.hirlog:
@@ -660,24 +685,24 @@ class qmme(Calculator):
                 self.hvrs_qm_calc[i_current_qm] = self.qm_calculators[i_current_qm].get_hirsh_volrat()
             except AttributeError:
                 # !DO NOT! be silent and take default data.
-                print self.qm_calculators[i_current_qm].__class__.__name__ + \
+                print( self.qm_calculators[i_current_qm].__class__.__name__ + \
                     " calculator does not yet support Hirshfeld-partitioning. " + \
-                    " Defaulting to v_hirsh/v_free = 1."
+                    " Defaulting to v_hirsh/v_free = 1.")
                 self.hvrs_qm_calc[i_current_qm] = [1.0 for i in \
                                   range(self.qm_regions[i_current_qm].get_number_of_atoms())]
-            
+
             self.solved_hvr_qm[i_current_qm] = True
-        
+
         return self.hvrs_qm_calc[i_current_qm]
-        
-    
+
+
     def generate_hirshpart(self, iregion):
         """ This function generates an array with all the hirshfeld parameters.
 
         Since only after the QM calculation, the Hirshfeld charges required in
         MM treatment are available for QM atoms we need to reconstruct an array
-        which contains those as well as a generic value of 1 for all not
-        available atoms.
+        which contains those as well as a generic value of self.hirbulk for all
+        not available atoms.
         """
 
         if self.nqm_regions == 0:
@@ -695,21 +720,38 @@ class qmme(Calculator):
                     self.qm_hirshpart[atom] = self.get_hirsh_volrat(region)[
                         np.sum(self.qm_map[region]) - nelem]
                     nelem -= 1
+                # set to the bulk value
                 elif (self.qm_hirshpart[atom] == 0):
-                    self.qm_hirshpart[atom] = 1.0
-        
+                    self.qm_hirshpart[atom] = self.hirbulk[0]
+
+        # If we requested to overwrite particular atoms the
+        # hirshfeld-bulk-value then is done here
+        if hasattr(self, 'hirlast'):
+            for nhf, hirlast in enumerate(self.hirlast):
+                s = slice(hirlast[0], hirlast[1])
+                self.qm_hirshpart[s] = [self.hirbulk[nhf]] * (hirlast[1] -
+                                                              hirlast[0])
+
         ## reset calculator flag for new evaluation
         self.solved_hvr_qm = [False,]*self.nqm_regions
         # Correct Hirshfeld-Partitioning for smaller portions of the whole
         # atoms-object if explicit or complementary mode is chosen
         if self.mm_mode in ['explicit', 'complementary']:
             nelem = np.sum(self.mm_map[iregion])
-            qm_hirshtmp = [1.0 for i in range(np.sum(self.mm_map[iregion]))]
+            # Everthing not touched by this should actually be 0!
+            qm_hirshtmp = [0.0 for i in range(np.sum(self.mm_map[iregion]))]
             for atom in (range(len(self.atoms))):
                 if (self.mm_map[iregion][atom]) and (nelem > 0):
                     qm_hirshtmp[np.sum(self.mm_map[iregion]) - nelem] = \
                         self.qm_hirshpart[atom]
                     nelem -= 1
+            # also add the bulk values here if requested
+            if hasattr(self, hirlast):
+                for nhf, hirlast in enumerate(self.hirlast):
+                    s = slice(hirlast[0], hirlast[1])
+                    qm_hirshtmp[s] = [self.hirbulk[nhf]] * (hirlast[1] -
+                                                            hirlast[0])
+
             return qm_hirshtmp
 
         # Return the final array
