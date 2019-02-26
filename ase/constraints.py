@@ -1546,12 +1546,13 @@ class UnitCellFilter(Filter):
     def get_stress(self):
         raise PropertyNotImplementedError
 
-    def get_potential_energy(self):
-        self.pressure = (self.stress[0]+self.stress[1]+self.stress[2])/3.0
-        # print self.pressure
-        # print self.atoms.get_volume()
-        return self.atoms.get_potential_energy() +\
-                (self.pressure)*self.atoms.get_volume()
+    # GSM: why is this here?! this actually breaks force_consistent behavior?
+    #def get_potential_energy(self):
+    #    self.pressure = (self.stress[0]+self.stress[1]+self.stress[2])/3.0
+    #    # print self.pressure
+    #    # print self.atoms.get_volume()
+    #    return self.atoms.get_potential_energy() +\
+    #            (self.pressure)*self.atoms.get_volume()
 
     def has(self, x):
         return self.atoms.has(x)
