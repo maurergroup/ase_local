@@ -578,10 +578,7 @@ class Aims(FileIOCalculator):
         if ('output') in self.parameters:
             if ('hirshfeld') in self.parameters['output']:
                 self.read_hirsh_volrat()
-<<<<<<< HEAD
                 self.read_hirsh_charge()
-=======
->>>>>>> 0f69003d6f52bfc75225cf1372ad71ed74b0ebbc
         if ('compute_forces' in self.parameters or
             'sc_accuracy_forces' in self.parameters):
             self.read_forces()
