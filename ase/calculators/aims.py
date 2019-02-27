@@ -207,7 +207,7 @@ class Aims(FileIOCalculator):
     __outfilename_default = 'aims.out'
 
     implemented_properties = ['energy', 'forces', 'stress', 'dipole', \
-            'magmom','hirsh_volrat', 'hirsh_charge', 'friction']
+            'magmom', 'hirsh_volrat', 'hirsh_charge', 'friction']
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, cubes=None, radmul=None,
@@ -727,7 +727,6 @@ class Aims(FileIOCalculator):
         if ('output' in self.parameters and
            'hirshfeld' not in self.parameters['output']):
                 raise NotImplementedError
-
         return FileIOCalculator.get_property(self, 'hirsh_volrat', self.atoms)
     
     def get_hirsh_charge(self,atoms):
@@ -735,8 +734,6 @@ class Aims(FileIOCalculator):
            'hirshfeld' not in self.parameters['output']):
                 raise NotImplementedError
         return FileIOCalculator.get_property(self, 'hirsh_charge', atoms)
-    
-
 
     def get_friction_tensor(self,atoms):
         if ('calculate_friction' not in self.parameters):
@@ -809,6 +806,10 @@ class Aims(FileIOCalculator):
             elif ('Hirshfeld volume ' in line):
                 v_hirsh_tmp = float(line.split()[4])
                 hirsh_volrat.append(v_hirsh_tmp / v_free_tmp)
+
+        # Save in internal variable
+        self.results['hirsh_volrat'] = hirsh_volrat
+
 
     def read_hirsh_charge(self):
         infile = open(self.out, 'r')
