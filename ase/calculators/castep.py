@@ -1360,7 +1360,8 @@ End CASTEP Interface Documentation
     def set_pspot(self, pspot, elems=None,
                   notelems=None,
                   clear=True,
-                  suffix='usp'):
+                  suffix='usp',
+		  manual=False):
         """Quickly set all pseudo-potentials: Usually CASTEP psp are named
         like <Elem>_<pspot>.<suffix> so this function function only expects
         the <LibraryName>. It then clears any previous pseudopotential
@@ -1374,6 +1375,7 @@ End CASTEP Interface Documentation
             - notelems (None): do not set the elements
             - clear (True): clear previous settings
             - suffix (usp): PP file suffix
+	    - manual (False): manually specify a PP via a string
         """
         if self._find_pspots:
             if self._pedantic:
@@ -1385,15 +1387,18 @@ End CASTEP Interface Documentation
 
         if clear and not elems and not notelems:
             self.cell.species_pot.clear()
-        for elem in set(self.atoms.get_chemical_symbols()):
-            if elems is not None and elem not in elems:
-                continue
-            if notelems is not None and elem in notelems:
-                continue
-            self.cell.species_pot = (elem, '%s_%s.%s' % (elem, pspot, suffix))
+	if not manual:
+            for elem in set(self.atoms.get_chemical_symbols()):
+                if elems is not None and elem not in elems:
+                    continue
+                if notelems is not None and elem in notelems:
+                    continue
+                self.cell.species_pot = (elem, '%s_%s.%s' % (elem, pspot, suffix))
+	else:
+	    self.cell.species_pot = (elems, pspot)
 
     def find_pspots(self, pspot='.+', elems=None,
-                    notelems=None, clear=True, suffix='(usp|UPF|recpot)'):
+                    notelems=None, clear=False, suffix='(usp|UPF|recpot)'):
         """Quickly find and set all pseudo-potentials by searching in
         castep_pp_path:
 
@@ -1654,7 +1659,7 @@ End CASTEP Interface Documentation
         """
         self.prepare_input_files(*args, **kwargs)
 
-    def prepare_input_files(self, atoms=None, force_write=None):
+    def prepare_input_files(self, atoms=None, force_write=None, elnes_species=None):
         """Only writes the input .cell and .param files and return
         This can be useful if one quickly needs to prepare input files
         for a cluster where no python or ASE is available. One can than
@@ -1725,7 +1730,8 @@ End CASTEP Interface Documentation
         # write out the input file
         self._write_cell(self._abs_path('%s.cell' % self._seed),
                          self.atoms, castep_cell=self.cell,
-                         force_write=force_write)
+                         force_write=force_write,
+			 elnes_species=elnes_species)
 
         if self._export_settings:
             interface_options = self._opt
@@ -1890,7 +1896,7 @@ End CASTEP Interface Documentation
             else:
                 warnings.warn('Option "%s" is not known - please set any new'
                               ' options directly in the .cell or .param '
-                              'objects')
+                              'objects' % attr)
                 return
 
         # here we know it must go into one of the component param or cell
@@ -2600,6 +2606,7 @@ class CastepCell(CastepInputFile):
         # Single tuple
         if isinstance(value, tuple) and len(value) == 2:
             value = [value]
+
         # List of tuples
         if hasattr(value, '__getitem__'):
             pspots = [tuple(map(str.strip, x)) for x in value]

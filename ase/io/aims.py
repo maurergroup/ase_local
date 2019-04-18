@@ -219,10 +219,11 @@ def write_aims(
             for n in range(3):
                 if xyz[n]:
                     fd.write("constrain_relaxation %s\n" % "xyz"[n])
+
         if atom.charge:
-            fd.write('initial_charge %16.6f\n' % atom.charge)
-        if atom.magmom:
-            fd.write('initial_moment %16.6f\n' % atom.magmom)
+            fd.write("initial_charge %16.6f\n" % atom.charge)
+        if write_magmoms:
+            fd.write("initial_moment %16.6f\n" % atom.magmom)
         if i in friction_atoms:
             fd.write('calculate_friction .true.\n')
         # Write velocities if this is wanted
