@@ -5,10 +5,12 @@ import warnings
 
 
 class CLICommand:
-    short_description = "ASE's graphical user interface"
-    description = ('ASE-GUI.  See the online manual '
-                   '(https://wiki.fysik.dtu.dk/ase/ase/gui/gui.html) '
-                   'for more information.')
+    """ASE's graphical user interface.
+
+    ASE-GUI.  See the online manual
+    (https://wiki.fysik.dtu.dk/ase/ase/gui/gui.html)
+    for more information.
+    """
 
     @staticmethod
     def add_arguments(parser):
@@ -78,7 +80,7 @@ class CLICommand:
             images.repeat_images([int(c) for c in r])
 
         if args.radii_scale:
-            images.set_radii(args.radii_scale)
+            images.scale_radii(args.radii_scale)
 
         if args.output is not None:
             warnings.warn('You should be using "ase convert ..." instead!')
@@ -93,6 +95,13 @@ class CLICommand:
                         print(x, end=' ')
                     print()
         else:
+            import os
             from ase.gui.gui import GUI
+
+            backend = os.environ.get('MPLBACKEND', '')
+            if backend == 'module://ipykernel.pylab.backend_inline':
+                # Jupyter should not steal our windows
+                del os.environ['MPLBACKEND']
+
             gui = GUI(images, args.rotations, args.bonds, args.graph)
             gui.run()

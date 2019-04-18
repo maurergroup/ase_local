@@ -42,7 +42,7 @@ def convert_cell(ase_cell):
     to lower triangular matrix LAMMPS can accept. This
     function transposes cell matrix so the bases are column vectors
     """
-    cell = np.matrix.transpose(ase_cell)
+    cell = ase_cell.T
 
     if not is_upper_triangular(cell):
         # rotate bases into triangular matrix
@@ -139,6 +139,11 @@ Keyword                               Description
                    lammps_header=['units metal',
                                   'atom_style atomic',
                                   'atom_modify map array sort 0 0'])
+
+``amendments``     extra list of strings of LAMMPS commands to be run post
+                   post initialization. (Use: Initialization amendments)
+
+                   ["mass 1 58.6934"]
 
 ``keep_alive``     Boolean
                    whether to keep the lammps routine alive for more commands
@@ -266,6 +271,7 @@ by invoking the get_potential_energy() method::
         lammps_header=['units metal',
                        'atom_style atomic',
                        'atom_modify map array sort 0 0'],
+        amendments=None,
         boundary=True,
         create_box=True,
         create_atoms=True,
@@ -307,8 +313,8 @@ by invoking the get_potential_energy() method::
 
         self.lmp.command(cell_cmd)
 
-    def set_lammps_pos(self, atoms):
-        pos = atoms.get_positions() / unit_convert("distance", self.units)
+    def set_lammps_pos(self, atoms, wrap=True):
+        pos = atoms.get_positions(wrap=wrap) / unit_convert("distance", self.units)
 
         # If necessary, transform the positions to new coordinate system
         if self.coord_transform is not None:
@@ -381,6 +387,10 @@ by invoking the get_potential_energy() method::
 
         self.set_lammps_pos(atoms)
 
+        if self.parameters.amendments is not None:
+            for cmd in self.parameters.amendments:
+                self.lmp.command(cmd)
+
         if n_steps > 0:
             if velocity_field is None:
                 vel = (atoms.get_velocities() /
@@ -390,8 +400,7 @@ by invoking the get_potential_energy() method::
 
             # If necessary, transform the velocities to new coordinate system
             if self.coord_transform is not None:
-                vel = np.dot(self.coord_transform, np.matrix.transpose(vel))
-                vel = np.matrix.transpose(vel)
+                vel = np.dot(self.coord_transform, vel.T).T
 
             # Convert ase velocities matrix to lammps-style velocities array
             lmp_velocities = list(vel.ravel())
@@ -460,12 +469,17 @@ by invoking the get_potential_energy() method::
         self.results['stress'] = (stress *
                                   (-unit_convert("pressure", self.units)))
 
-        f = np.zeros((len(atoms), 3))
-        force_vars = ['fx', 'fy', 'fz']
-        for i, var in enumerate(force_vars):
-            f[:, i] = (
-                np.asarray(
-                    self.lmp.extract_variable(var, 'all', 1)[:len(atoms)]) *
+        # this does not necessarily yield the forces ordered by atom-id!
+        # f = np.zeros((len(atoms), 3))
+        # force_vars = ['fx', 'fy', 'fz']
+        # for i, var in enumerate(force_vars):
+        #     f[:, i] = (
+        #         np.asarray(
+        #             self.lmp.extract_variable(var, 'all', 1)[:len(atoms)]) *
+        #         unit_convert("force", self.units))
+
+        # definitely yields atom-id ordered array
+        f = (np.array(self.lmp.gather_atoms("f", 1, 3)).reshape(-1,3) *
                 unit_convert("force", self.units))
 
         if self.coord_transform is not None:
@@ -613,6 +627,8 @@ by invoking the get_potential_energy() method::
             self.lmp.command('echo none')  # don't echo the atom positions
             self.rebuild(atoms)
             self.lmp.command('echo log')  # turn back on
+        else:
+            self.previous_atoms_numbers = atoms.numbers.copy()
 
         # execute the user commands
         for cmd in self.parameters.lmpcmds:

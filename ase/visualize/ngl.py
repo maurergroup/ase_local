@@ -38,10 +38,7 @@ class NGLDisplay:
         self.view.remove_ball_and_stick()
         self.view.camera = 'orthographic'
         self.view.parameters = { "clipDist": 0 }
-        self.view.update_spacefill(radiusType='covalent',
-                                   scale=0.8,
-                                   color_scheme=self.csel.value,
-                                   color_scale='rainbow')
+
         self.view.center()
 
         self.asel = Dropdown(options=['All'] +
@@ -49,14 +46,19 @@ class NGLDisplay:
                              value='All', description='Show')
 
         self.csel = Dropdown(options=nglview.color.COLOR_SCHEMES,
-                             value=' ', description='Color scheme')
+                             value='element', description='Color scheme')
 
-        self.rad = FloatSlider(value=0.8, min=0.0, max=1.5, step=0.01,
+        self.rad = FloatSlider(value=0.5, min=0.0, max=1.5, step=0.01,
                                description='Ball size')
 
         self.asel.observe(self._select_atom)
         self.csel.observe(self._update_repr)
         self.rad.observe(self._update_repr)
+
+        self.view.update_spacefill(radiusType='covalent',
+                                   radiusScale=0.5,
+                                   color_scheme=self.csel.value,
+                                   color_scale='rainbow')
 
         wdg = [self.asel, self.csel, self.rad]
         if self.frm:
@@ -70,7 +72,7 @@ class NGLDisplay:
 
     def _update_repr(self, chg=None):
         self.view.update_spacefill(radiusType='covalent',
-                                   scale=self.rad.value,
+                                   radiusScale=self.rad.value,
                                    color_scheme=self.csel.value,
                                    color_scale='rainbow')
 
