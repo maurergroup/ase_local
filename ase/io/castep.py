@@ -237,9 +237,9 @@ def write_castep_cell(fd, atoms, positions_frac=False, force_write=False,
 
     # GSM: modify element string for ELNES modules
     if elnes_species is not None:
-	for num, line in enumerate(pos_block):
-	    if line.split()[0] == 'X':
-		pos_block[num] = line.replace('X', '{}:exc'.format(elnes_species))
+        for num, line in enumerate(pos_block):
+            if line.split()[0] == 'X':
+                pos_block[num] = line.replace('X', '{}:exc'.format(elnes_species))
 
     setattr(cell, pos_keyword, pos_block)
 

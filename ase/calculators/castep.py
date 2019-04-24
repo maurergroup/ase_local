@@ -1358,10 +1358,10 @@ End CASTEP Interface Documentation
         self._label = label
 
     def set_pspot(self, pspot, elems=None,
-                  notelems=None,
-                  clear=True,
-                  suffix='usp',
-		  manual=False):
+                notelems=None,
+                clear=True,
+                suffix='usp',
+                manual=False):
         """Quickly set all pseudo-potentials: Usually CASTEP psp are named
         like <Elem>_<pspot>.<suffix> so this function function only expects
         the <LibraryName>. It then clears any previous pseudopotential
@@ -1387,15 +1387,15 @@ End CASTEP Interface Documentation
 
         if clear and not elems and not notelems:
             self.cell.species_pot.clear()
-	if not manual:
+        if not manual:
             for elem in set(self.atoms.get_chemical_symbols()):
                 if elems is not None and elem not in elems:
                     continue
                 if notelems is not None and elem in notelems:
                     continue
                 self.cell.species_pot = (elem, '%s_%s.%s' % (elem, pspot, suffix))
-	else:
-	    self.cell.species_pot = (elems, pspot)
+        else:
+            self.cell.species_pot = (elems, pspot)
 
     def find_pspots(self, pspot='.+', elems=None,
                     notelems=None, clear=False, suffix='(usp|UPF|recpot)'):
