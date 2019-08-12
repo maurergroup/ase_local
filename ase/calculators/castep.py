@@ -1358,10 +1358,10 @@ End CASTEP Interface Documentation
         self._label = label
 
     def set_pspot(self, pspot, elems=None,
-                  notelems=None,
-                  clear=True,
-                  suffix='usp',
-		  manual=False):
+                notelems=None,
+                clear=True,
+                suffix='usp',
+                manual=False):
         """Quickly set all pseudo-potentials: Usually CASTEP psp are named
         like <Elem>_<pspot>.<suffix> so this function function only expects
         the <LibraryName>. It then clears any previous pseudopotential
