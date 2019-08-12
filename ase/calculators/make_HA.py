@@ -6,7 +6,7 @@ from sys import argv
 try:
     src_loc = str(argv[1])+'/'
 except IndexError:
-    print 'No source location specified. Using current location.'
+    print('No source location specified. Using current location.')
     src_loc = './'
 
 curr_files = listdir(src_loc)
