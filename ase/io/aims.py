@@ -178,8 +178,10 @@ def write_aims(
                 fix_cart[constr.index] = [1, 1, 1]
             elif isinstance(constr, FixCartesian):
                 fix_cart[constr.a] = -constr.mask + 1
-
+    
     if ghosts is None:
+        ghosts = np.zeros(len(atoms))
+    elif not ghosts:
         ghosts = np.zeros(len(atoms))
     else:
         assert len(ghosts) == len(atoms)
