@@ -2170,7 +2170,16 @@ def create_castep_keywords(castep_command, filename='castep_keywords.json',
 
     castep_version = get_castep_version(castep_command)
 
-    help_all, _ = shell_stdouterr('%s -help all' % castep_command)
+    # help_all, _ = shell_stdouterr('%s -help all' % castep_command) not working 
+    # split -help all into the three different level keywords and change help_all
+    # to add all threee commands instead
+    
+    help_basic, _ = shell_stdouterr('%s -help basic' % castep_command)
+    help_inter, _ = shell_stdouterr('%s -help inter' % castep_command)
+    help_expert, _ = shell_stdouterr('%s -help expert' % castep_command)
+    
+    help_all = help_basic + help_inter + help_expert
+    
 
     # Filter out proper keywords
     try:
