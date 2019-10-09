@@ -179,10 +179,10 @@ def write_aims(
             elif isinstance(constr, FixCartesian):
                 fix_cart[constr.a] = -constr.mask + 1
 
-    if ghosts is None:
-        ghosts = np.zeros(len(atoms))
-    else:
-        assert len(ghosts) == len(atoms)
+    #if ghosts is None:
+    ghosts = np.zeros(len(atoms))
+    #else:
+        #assert len(ghosts) == len(atoms)
     if friction_atoms is None:
         friction_atoms = []
 

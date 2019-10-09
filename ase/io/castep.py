@@ -287,7 +287,6 @@ def write_castep_cell(fd, atoms, positions_frac=False, force_write=False,
                 n = constr.a
                 symbol = atoms.get_chemical_symbols()[n]
                 nis = atoms.calc._get_number_in_species(n)
-
                 l = '%6d %3s %3d   ' % (len(constr_block) + 1, symbol, nis)
                 l += ' '.join([str(d) for d in constr.dir])
                 constr_block += [l]
