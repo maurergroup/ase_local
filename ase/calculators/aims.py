@@ -475,7 +475,7 @@ class Aims(FileIOCalculator):
         else:
             friction_atoms = self.parameters['friction_atoms']
         write_aims(os.path.join(self.directory, 'geometry.in'), atoms, scaled, ghosts,\
-                friction_atoms)
+                friction_atoms=friction_atoms)
         self.write_control(atoms, os.path.join(self.directory, 'control.in'))
         self.write_species(atoms, os.path.join(self.directory, 'control.in'))
         self.parameters.write(os.path.join(self.directory, 'parameters.ase'))
