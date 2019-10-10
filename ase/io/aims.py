@@ -225,7 +225,7 @@ def write_aims(
         if i in friction_atoms:
             fd.write('calculate_friction .true.\n')
         # Write velocities if this is wanted
-        if velocities and atoms.get_velocities() is not None:
+        if (velocities).all and (atoms.get_velocities()).all is not None:
             fd.write(
                 "  velocity {:.16f} {:.16f} {:.16f}\n".format(
                     *atoms.get_velocities()[i] / v_unit
