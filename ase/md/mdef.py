@@ -93,11 +93,12 @@ class MDEF(MolecularDynamics):
     #def friction_step2(self,v,dt,f,m,,rand):
         #return v + 0.5* 
 
-    def step(self, f):
+    def step(self, f=None):
         #Bussi Parinello step with tensor transformation
         dt = self.dt
-        f = f
         atoms = self.atoms
+        if f is None:
+            f = atoms.get_forces()
         p = self.atoms.get_momenta().flatten()
         #v = self.atoms.get_velocities().flatten()
         #m = self.masses
