@@ -1,8 +1,8 @@
 import time
 
 from ase.units import Ang, fs
-
-v_unit = Ang / (1000.0 * fs)
+ps = fs*1000
+v_unit = Ang / ps
 
 
 def read_aims(filename):
@@ -165,7 +165,7 @@ def write_aims(
 
     if atoms.get_velocities() is not None:
         write_velocities = True
-        velocities = atoms.get_velocities()*v_unit
+        velocities = atoms.get_velocities()/v_unit
     else:
         write_velocities = False
 
