@@ -128,9 +128,6 @@ def write_aims(
 
     from ase.constraints import FixAtoms, FixCartesian
     import numpy as np
-    from ase.units import second
-    ps = second*1E-12
-
     if isinstance(atoms, (list, tuple)):
         if len(atoms) > 1:
             raise RuntimeError(
@@ -168,7 +165,7 @@ def write_aims(
 
     if atoms.get_velocities() is not None:
         write_velocities = True
-        velocities = atoms.get_velocities()/ps
+        velocities = atoms.get_velocities()*v_unit
     else:
         write_velocities = False
 
@@ -223,14 +220,7 @@ def write_aims(
         if atom.charge:
             fd.write("initial_charge %16.6f\n" % atom.charge)
         if i in friction_atoms:
-            fd.write('calculate_friction .true.\n')
-        # Write velocities if this is wanted
-        if (velocities).all and (atoms.get_velocities()).all is not None:
-            fd.write(
-                "  velocity {:.16f} {:.16f} {:.16f}\n".format(
-                    *atoms.get_velocities()[i] / v_unit
-                )
-            )
+            fd.write("calculate_friction .true.\n")
 
 
 # except KeyError:
