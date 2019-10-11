@@ -1067,7 +1067,7 @@ class Aims(FileIOCalculator):
         ps = s*1.E-12
         nlines = len(lines)-1
         natoms = len(self.atoms)
-        ndim = nlines/2
+        ndim = int(nlines/2)
         friction_tensor = np.zeros([ndim,ndim],dtype=np.float)
         friction_index = np.zeros(3*natoms,dtype=np.int)
         friction_index[:] = -1
