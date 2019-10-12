@@ -117,6 +117,7 @@ bool_keys = [
     'use_logsbt',
     'vdw_correction_hirshfeld',
     'many_body_dispersion',
+    'friction_output_memory',
 ]
 
 list_keys = [
@@ -208,7 +209,8 @@ class Aims(FileIOCalculator):
     __outfilename_default = 'aims.out'
 
     implemented_properties = ['energy', 'forces', 'stress', 'stresses', \
-            'dipole', 'magmom','hirsh_volrat','hirsh_charge', 'friction']
+            'dipole', 'magmom','hirsh_volrat','hirsh_charge', 'friction',\
+            'vfriction']
     def __init__(self, restart=None, ignore_bad_restart_file=False,
                  label=os.curdir, atoms=None, cubes=None, radmul=None,
                  tier=None, aims_command=None,
@@ -748,10 +750,16 @@ class Aims(FileIOCalculator):
                 raise NotImplementedError
         return FileIOCalculator.get_property(self, 'hirsh_charge', atoms)
 
-    def get_friction_tensor(self,atoms):
+    def get_friction_tensor(self,atoms,vmdef=False):
         if ('calculate_friction' not in self.parameters):
                 raise NotImplementedError
-        return FileIOCalculator.get_property(self, 'friction', atoms)
+
+        if vmdef:
+                if ('friction_output_memory' not in self.parameters):
+                    raise NotImplementedError    
+                return FileIOCalculator.get_property(self, 'vfriction', atoms)
+        else:
+                return FileIOCalculator.get_property(self, 'friction', atoms)
 
     def read_dipole(self):
         "Method that reads the electric dipole moment from the output file."
@@ -1061,6 +1069,8 @@ class Aims(FileIOCalculator):
     def read_friction_tensor(self):
         """
         reads output of calculate_friction from file friction_tensor.out
+        if memory kernel present then reads velocity adjusted friction
+        tensor
         """
         lines = open('friction_tensor.out', 'r').readlines()
         from ase.units import s
@@ -1093,6 +1103,67 @@ class Aims(FileIOCalculator):
         #return friction tensor in 1/ASE time units
         self.results['friction'] = friction_tensor_full/ps
 
+        if ('friction_output_memory' in self.parameters):
+            lines = open('friction_output_memory.out', 'r').readlines()
+            bin_width = float(lines[1].split()[-1]) #eV
+            max_e = (int(lines[2].split()[-1])-1)*bin_width
+            bins = np.linspace(0,max_e,int(lines[2].split()[-1]))
+            vels = self.atoms.get_velocities()
+            if vels is None:
+                vels = np.zeros([natoms,3])
+            masses = self.atoms.get_masses()
+            vfriction_tensor = np.zeros([ndim,ndim],dtype=np.float)
+            vfriction_tensor_full = np.zeros([3*natoms,3*natoms],dtype=np.float)
+                
+            i_atom = 0
+            i_cart = -1
+            for i in range(3*natoms):
+                i_cart = i_cart + 1
+                if (i_cart>2):
+                    i_cart = 0
+                    i_atom = i_atom + 1
+                j_atom = 0
+                j_cart = -1
+                for j in range(3*natoms):
+                    j_cart = j_cart + 1
+                    if (j_cart>2):
+                        j_cart = 0
+                        j_atom = j_atom + 1
+                    if (friction_index[i]>=0 and friction_index[j]>=0):
+                        energy = 0.5*np.sqrt(masses[i_atom])*np.sqrt(masses[j_atom]) \
+                            *vels[i_atom,i_cart]*vels[j_atom,j_cart]
+                        for b in bins:
+                            if b<energy:
+                                lower_bin=b
+                            if b>energy:
+                                upper_bin=b
+                                break
+
+                        for l,line in enumerate(lines[5:]):
+                            if 'Friction' in line:
+                                if (friction_index[i] == int(line.split()[-2])-1 \
+                                        and friction_index[j] == int(line.split()[-1])-1):
+                                    mode = True
+                                    continue
+                                else:
+                                    mode = False
+                                    continue
+                                    
+                            elif mode:
+                                if energy ==0 and float(line.split()[0])==0:
+                                    vfriction_tensor_full[i,j] = float(line.split()[1])
+                                    vfriction_tensor_full[j,i] = vfriction_tensor_full[i,j]
+                                    break
+                                
+                                elif float(line.split()[0])==lower_bin and mode:
+                                    y = [line.split()[1],lines[l].split()[1]]
+                                    A = np.vstack([[lower_bin,upper_bin], np.ones(2)]).T
+                                    m,c = np.linalg.lstsq(A,y,rcond=None)[0]
+                                    vfriction_tensor_full[i,j] = m*energy+c
+                                    vfriction_tensor_full[j,i] = vfriction_tensor_full[i,j]
+                                    break
+
+        self.results['vfriction'] = vfriction_tensor_full/ps
 class AimsCube:
     "Object to ensure the output of cube files, can be attached to Aims object"
     def __init__(self, origin=(0, 0, 0),
