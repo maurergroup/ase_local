@@ -1104,7 +1104,7 @@ class Aims(FileIOCalculator):
         self.results['friction'] = friction_tensor_full/ps
 
         if ('friction_output_memory' in self.parameters):
-            lines = open('friction_output_memory.out', 'r').readlines()
+            lines = open('friction_memory_kernel.out', 'r').readlines()
             bin_width = float(lines[1].split()[-1]) #eV
             max_e = (int(lines[2].split()[-1])-1)*bin_width
             bins = np.linspace(0,max_e,int(lines[2].split()[-1]))
@@ -1139,7 +1139,9 @@ class Aims(FileIOCalculator):
                                 upper_bin=b
                                 break
 
-                        for l,line in enumerate(lines[5:]):
+                        for l,line in enumerate(lines):
+                            if l <5:
+                                continue
                             if 'Friction' in line:
                                 if (friction_index[i] == int(line.split()[-2])-1 \
                                         and friction_index[j] == int(line.split()[-1])-1):
@@ -1156,9 +1158,9 @@ class Aims(FileIOCalculator):
                                     break
                                 
                                 elif float(line.split()[0])==lower_bin and mode:
-                                    y = [line.split()[1],lines[l].split()[1]]
-                                    A = np.vstack([[lower_bin,upper_bin], np.ones(2)]).T
-                                    m,c = np.linalg.lstsq(A,y,rcond=None)[0]
+                                    y = [float(line.split()[1]),float(lines[l+1].split()[1])]
+                                    m = (y[1]-y[0])/(upper_bin-lower_bin)
+                                    c = y[0]-(m*lower_bin)
                                     vfriction_tensor_full[i,j] = m*energy+c
                                     vfriction_tensor_full[j,i] = vfriction_tensor_full[i,j]
                                     break
