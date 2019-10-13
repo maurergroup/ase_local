@@ -1108,9 +1108,9 @@ class Aims(FileIOCalculator):
             bin_width = float(lines[1].split()[-1]) #eV
             max_e = (int(lines[2].split()[-1])-1)*bin_width
             bins = np.linspace(0,max_e,int(lines[2].split()[-1]))
-            vels = self.atoms.get_velocities()
-            if vels is None:
-                vels = np.zeros([natoms,3])
+            moms = self.atoms.get_momenta()
+            if moms is None:
+                moms = np.zeros([natoms,3])
             masses = self.atoms.get_masses()
             vfriction_tensor = np.zeros([ndim,ndim],dtype=np.float)
             vfriction_tensor_full = np.zeros([3*natoms,3*natoms],dtype=np.float)
@@ -1129,9 +1129,12 @@ class Aims(FileIOCalculator):
                     if (j_cart>2):
                         j_cart = 0
                         j_atom = j_atom + 1
+
+                    if j<i:
+                        continue
                     if (friction_index[i]>=0 and friction_index[j]>=0):
-                        energy = 0.5*np.sqrt(masses[i_atom])*np.sqrt(masses[j_atom]) \
-                            *vels[i_atom,i_cart]*vels[j_atom,j_cart]
+                        energy = 0.5*moms[i_atom,i_cart]*moms[j_atom,j_cart] \
+                                /(np.sqrt(masses[i_atom]*masses[j_atom]))
                         for b in bins:
                             if b<energy:
                                 lower_bin=b
