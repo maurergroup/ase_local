@@ -70,7 +70,10 @@ class POVRAY(EPS):
         'transparent': True,  # transparent background
         'canvas_width': None,  # width of canvas in pixels
         'canvas_height': None,  # height of canvas in pixels
+        'camera_xyloc' : (0.,0.), #location of camera in image plane 
         'camera_dist': 50.,  # distance from camera to front atom
+        'rightup' : None, #Explicitly define rightup vectors for image
+        'look_at': (0., 0., 0.), #position camera looks at (x,y,z) tuple
         'image_plane': None,  # distance from front atom to image plane
         'camera_type': 'orthographic',  # perspective, ultra_wide_angle
         'point_lights': [],  # [[loc1, color1], [loc2, color2],...]
@@ -105,7 +108,10 @@ class POVRAY(EPS):
 
     def write(self, filename, **settings):
         # Determine canvas width and height
-        ratio = float(self.w) / self.h
+        if self.rightup is None:
+            ratio = float(self.w/self.h)
+        else:
+            ratio = float(self.rightup[0]) / self.rightup[1]
         if self.canvas_width is None:
             if self.canvas_height is None:
                 self.canvas_width = min(self.w * 15, 640)
@@ -121,6 +127,12 @@ class POVRAY(EPS):
             else:
                 self.image_plane = 0
         self.image_plane += self.camera_dist
+        
+        #Determine rightup vectors
+        if self.rightup is None:
+            rightup=[self.w,self.h]
+        else:
+            rightup=self.rightup
 
         # Produce the .ini file
         if filename.endswith('.pov'):
@@ -149,10 +161,12 @@ class POVRAY(EPS):
         w('\n')
         w('global_settings {assumed_gamma 1 max_trace_level 6}\n')
         w('background {%s}\n' % pc(self.background))
-        w('camera {%s\n' % self.camera_type)
-        w('  right -%.2f*x up %.2f*y\n' % (self.w, self.h))
+        w('camera {%s\n' % self.camera_type)     
+        w('  right -%.2f*x up %.2f*y\n' % (rightup[0],rightup[1]))
         w('  direction %.2f*z\n' % self.image_plane)
-        w('  location <0,0,%.2f> look_at <0,0,0>}\n' % self.camera_dist)
+        #w('  location <0,0,%.2f> look_at <0,0,0>}\n' % self.camera_dist)
+        w('  location <%.2f,%.2f,%.2f>\n' % (self.camera_xyloc[0],self.camera_xyloc[1],self.camera_dist))
+        w('  look_at <%.2f,%.2f,%.2f>}' % tuple(self.look_at))
         for loc, rgb in self.point_lights:
             w('light_source {%s %s}\n' % (pa(loc), pc(rgb)))
 
