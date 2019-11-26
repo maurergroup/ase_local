@@ -817,6 +817,15 @@ class Atoms(object):
         """
         return len(self)
 
+    def _get_number_in_species(self, at):
+        """Return the number of the atoms within the set of it own
+        species. If you are an ASE commiter: why not move this into
+        ase.atoms.Atoms ?"""
+        numbers = self.get_atomic_numbers()
+        n = numbers[at]
+        nis = numbers.tolist()[:at + 1].count(n)
+        return nis
+
     def __repr__(self):
         tokens = []
 
