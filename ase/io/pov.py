@@ -229,19 +229,14 @@ class POVRAY(PlottingVariables):
         w('#include "finish.inc"\n')
         w('\n')
         w('global_settings {assumed_gamma 1 max_trace_level 6}\n')
-<<<<<<< HEAD
-        w('background {%s}\n' % pc(self.background))
-        w('camera {%s\n' % self.camera_type)     
-        w('  right -%.2f*x up %.2f*y\n' % (rightup[0],rightup[1]))
-=======
         # The background must be transparent for a transparent image
+
         if self.transparent:
             w('background {%s transmit 1.0}\n' % pc(self.background))
         else:
             w('background {%s}\n' % pc(self.background))
         w('camera {%s\n' % self.camera_type)
         w('  right -%.2f*x up %.2f*y\n' % (self.w, self.h))
->>>>>>> 76c01f5dac00a4ed21e14a3a99d59637e5df5c3c
         w('  direction %.2f*z\n' % self.image_plane)
         #w('  location <0,0,%.2f> look_at <0,0,0>}\n' % self.camera_dist)
         w('  location <%.2f,%.2f,%.2f>\n' % (self.camera_xyloc[0],self.camera_xyloc[1],self.camera_dist))

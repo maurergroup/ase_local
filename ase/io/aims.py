@@ -188,9 +188,6 @@ def read_aims(filename, apply_constraints=True):
 
 
 def write_aims(
-<<<<<<< HEAD
-    filename, atoms, scaled=False, velocities=False, ghosts=None, info_str=None, friction_atoms=None):
-=======
     filename,
     atoms,
     scaled=False,
@@ -198,9 +195,9 @@ def write_aims(
     velocities=False,
     ghosts=None,
     info_str=None,
+    friction_atoms=None
     wrap=False,
 ):
->>>>>>> 76c01f5dac00a4ed21e14a3a99d59637e5df5c3c
     """Method to write FHI-aims geometry files.
 
     Writes the atoms positions and constraints (only FixAtoms is

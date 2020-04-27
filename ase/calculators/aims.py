@@ -478,15 +478,12 @@ class Aims(FileIOCalculator):
             raise RuntimeError('Found lattice vectors but no k-grid!')
         if not have_lattice_vectors and have_k_grid:
             raise RuntimeError('Found k-grid but no lattice vectors!')
-<<<<<<< HEAD
         have_friction = ('friction_atoms' in self.parameters)
         if not have_friction:
             friction_atoms = []
         else:
             friction_atoms = self.parameters['friction_atoms']
-        write_aims(os.path.join(self.directory, 'geometry.in'), atoms, scaled, ghosts,\
-                friction_atoms=friction_atoms)
-=======
+
         write_aims(
             os.path.join(self.directory, 'geometry.in'),
             atoms,
@@ -494,8 +491,8 @@ class Aims(FileIOCalculator):
             geo_constrain,
             velocities=velocities,
             ghosts=ghosts
+            friction_atoms=friction_atoms
         )
->>>>>>> 76c01f5dac00a4ed21e14a3a99d59637e5df5c3c
         self.write_control(atoms, os.path.join(self.directory, 'control.in'))
         self.write_species(atoms, os.path.join(self.directory, 'control.in'))
         self.parameters.write(os.path.join(self.directory, 'parameters.ase'))
