@@ -195,7 +195,7 @@ def write_aims(
     velocities=False,
     ghosts=None,
     info_str=None,
-    friction_atoms=None
+    friction_atoms=None,
     wrap=False,
 ):
     """Method to write FHI-aims geometry files.
@@ -268,17 +268,14 @@ def write_aims(
             fd.write("\n")
     fix_cart = np.zeros([len(atoms), 3])
 
-<<<<<<< HEAD
     if atoms.get_velocities() is not None:
         write_velocities = True
         velocities = atoms.get_velocities()/v_unit
     else:
         write_velocities = False
-=======
     # else aims crashes anyways
     # better be more explicit
     # write_magmoms = np.any([a.magmom for a in atoms])
->>>>>>> 76c01f5dac00a4ed21e14a3a99d59637e5df5c3c
 
     if atoms.constraints:
         for constr in atoms.constraints:
@@ -328,17 +325,12 @@ def write_aims(
             xyz = fix_cart[i]
             for n in range(3):
                 if xyz[n]:
-<<<<<<< HEAD
                     fd.write("constrain_relaxation %s\n" % "xyz"[n])
 
         if atom.charge:
             fd.write("initial_charge %16.6f\n" % atom.charge)
         if i in friction_atoms:
             fd.write("calculate_friction .true.\n")
-=======
-                    fd.write("    constrain_relaxation %s\n" % "xyz"[n])
-        if atom.charge:
-            fd.write("    initial_charge %16.6f\n" % atom.charge)
         if atom.magmom:
             fd.write("    initial_moment %16.6f\n" % atom.magmom)
 
@@ -349,7 +341,6 @@ def write_aims(
                     *atoms.get_velocities()[i] / v_unit
                 )
             )
->>>>>>> 76c01f5dac00a4ed21e14a3a99d59637e5df5c3c
 
     if geo_constrain:
         for line in get_sym_block(atoms):
