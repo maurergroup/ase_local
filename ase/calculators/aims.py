@@ -6,17 +6,17 @@ Simon P. Rittmeyer simon.rittmeyer@tum.de
 """
 
 import os
-
-import numpy as np
 import warnings
 import time
+from typing import Optional
+
+import numpy as np
 
 from ase.units import Hartree
 from ase.io.aims import write_aims, read_aims
 from ase.data import atomic_numbers
 from ase.calculators.calculator import FileIOCalculator, Parameters, kpts2mp, \
     ReadError, PropertyNotImplementedError
-from ase.utils import basestring
 
 
 float_keys = [
@@ -325,9 +325,10 @@ class Aims(FileIOCalculator):
         self.tier = tier
 
     # handling the filtering for dynamical commands with properties,
-    @property
-    def command(self):
+    @property  # type: ignore
+    def command(self) -> Optional[str]:  # type: ignore
         return self.__command
+
     @command.setter
     def command(self, x):
         self.__update_command(command=x)
@@ -357,12 +358,12 @@ class Aims(FileIOCalculator):
         # new class variables due to dynamical command handling
         self.__aims_command = None
         self.__outfilename = None
-        self.__command = None
+        self.__command: Optional[str] = None
 
         # filter the command and set the member variables "aims_command" and "outfilename"
         self.__update_command(command=command,
-                             aims_command=aims_command,
-                             outfilename=outfilename)
+                              aims_command=aims_command,
+                              outfilename=outfilename)
 
     # legacy handling of the (run_)command behavior a.k.a. a universal setter routine
     def __update_command(self, command=None, aims_command=None,
@@ -426,19 +427,19 @@ class Aims(FileIOCalculator):
                 if not self.outfilename:
                     self.__outfilename = Aims.__outfilename_default
 
-        self.__command =  '{0:s} > {1:s}'.format(self.aims_command, self.outfilename)
+        self.__command = '{0:s} > {1:s}'.format(self.aims_command,
+                                                self.outfilename)
 
     def set_atoms(self, atoms):
         self.atoms = atoms
 
     def set_label(self, label, update_outfilename=False):
-        self.label = label
-        self.directory = label
-        self.prefix = ''
-        # change outfile name to "<label.out>"
-        if update_outfilename:
-            self.outfilename="{}.out".format(os.path.basename(label))
-        self.out = os.path.join(label, self.outfilename)
+        msg = "Aims.set_label is not supported anymore, please use `directory`"
+        raise RuntimeError(msg)
+
+    @property
+    def out(self):
+        return os.path.join(self.label, self.outfilename)
 
     def check_state(self, atoms):
         system_changes = FileIOCalculator.check_state(self, atoms)
@@ -459,8 +460,16 @@ class Aims(FileIOCalculator):
         return changed_parameters
 
     def write_input(self, atoms, properties=None, system_changes=None,
-                    ghosts=None, scaled=False):
+                    ghosts=None, geo_constrain=None, scaled=None, velocities=None):
         FileIOCalculator.write_input(self, atoms, properties, system_changes)
+
+        if geo_constrain is None:
+            geo_constrain = "relax_geometry" in self.parameters
+
+        if scaled is None:
+            scaled = np.all(atoms.get_pbc())
+        if velocities is None:
+            velocities = atoms.has('momenta')
 
         have_lattice_vectors = atoms.pbc.any()
         have_k_grid = ('k_grid' in self.parameters or
@@ -469,6 +478,7 @@ class Aims(FileIOCalculator):
             raise RuntimeError('Found lattice vectors but no k-grid!')
         if not have_lattice_vectors and have_k_grid:
             raise RuntimeError('Found k-grid but no lattice vectors!')
+<<<<<<< HEAD
         have_friction = ('friction_atoms' in self.parameters)
         if not have_friction:
             friction_atoms = []
@@ -476,6 +486,16 @@ class Aims(FileIOCalculator):
             friction_atoms = self.parameters['friction_atoms']
         write_aims(os.path.join(self.directory, 'geometry.in'), atoms, scaled, ghosts,\
                 friction_atoms=friction_atoms)
+=======
+        write_aims(
+            os.path.join(self.directory, 'geometry.in'),
+            atoms,
+            scaled,
+            geo_constrain,
+            velocities=velocities,
+            ghosts=ghosts
+        )
+>>>>>>> 76c01f5dac00a4ed21e14a3a99d59637e5df5c3c
         self.write_control(atoms, os.path.join(self.directory, 'control.in'))
         self.write_species(atoms, os.path.join(self.directory, 'control.in'))
         self.parameters.write(os.path.join(self.directory, 'parameters.ase'))
@@ -489,20 +509,20 @@ class Aims(FileIOCalculator):
             raise ValueError('No atoms object attached')
         self.write_input(self.atoms)
 
-    def write_control(self, atoms, filename):
+    def write_control(self, atoms, filename, debug=False):
         lim = '#' + '='*79
         output = open(filename, 'w')
         output.write(lim + '\n')
         for line in ['FHI-aims file: ' + filename,
                      'Created using the Atomic Simulation Environment (ASE)',
                      time.asctime(),
-                     '',
-                     'List of parameters used to initialize the calculator:',
                      ]:
             output.write('# ' + line + '\n')
-        for p, v in self.parameters.items():
-            s = '#     {} : {}\n'.format(p, v)
-            output.write(s)
+        if debug:
+            output.write('# \n# List of parameters used to initialize the calculator:',)
+            for p, v in self.parameters.items():
+                s = '#     {} : {}\n'.format(p, v)
+                output.write(s)
         output.write(lim + '\n')
 
 
@@ -544,7 +564,7 @@ class Aims(FileIOCalculator):
             elif isinstance(value, (tuple, list)):
                 output.write('%-35s%s\n' %
                              (key, ' '.join(str(x) for x in value)))
-            elif isinstance(value, basestring):
+            elif isinstance(value, str):
                 output.write('%-35s%s\n' % (key, value))
             else:
                 output.write('%-35s%r\n' % (key, value))
@@ -564,9 +584,11 @@ class Aims(FileIOCalculator):
             if not os.path.isfile(filename):
                 raise ReadError
 
-        self.atoms = read_aims(geometry)
+        self.atoms, symmetry_block = read_aims(geometry, True)
         self.parameters = Parameters.read(os.path.join(self.directory,
                                                        'parameters.ase'))
+        if symmetry_block:
+            self.parameters["symmetry_block"] = symmetry_block
         self.read_results()
 
     def read_results(self):
@@ -586,14 +608,14 @@ class Aims(FileIOCalculator):
             self.read_forces()
 
         if ('sc_accuracy_stress' in self.parameters or
-            ('compute_numerical_stress' in self.parameters
-            and self.parameters['compute_numerical_stress']) or
-            ('compute_analytical_stress' in self.parameters
-            and self.parameters['compute_analytical_stress']) or
-            ('compute_heat_flux' in self.parameters
-            and self.parameters['compute_heat_flux'])):
+                ('compute_numerical_stress' in self.parameters
+                and self.parameters['compute_numerical_stress']) or
+                ('compute_analytical_stress' in self.parameters
+                and self.parameters['compute_analytical_stress']) or
+                ('compute_heat_flux' in self.parameters
+                and self.parameters['compute_heat_flux'])):
             self.read_stress()
-            
+
         if ('compute_heat_flux' in self.parameters
             and self.parameters['compute_heat_flux']):
             self.read_stresses()

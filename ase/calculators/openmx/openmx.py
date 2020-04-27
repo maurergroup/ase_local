@@ -19,7 +19,6 @@
 
 """
 
-from __future__ import print_function
 import os
 import time
 import subprocess
@@ -43,7 +42,7 @@ class OpenMX(FileIOCalculator):
     Calculator interface to the OpenMX code.
     """
 
-    implemented_properties = (
+    implemented_properties = [
         'free_energy',       # Same value with energy
         'energy',
         'forces',
@@ -52,8 +51,7 @@ class OpenMX(FileIOCalculator):
         'chemical_potential',
         'magmom',
         'magmoms',
-        'eigenvalues',
-    )
+        'eigenvalues']
 
     default_parameters = OpenMXParameters()
 
@@ -151,15 +149,15 @@ class OpenMX(FileIOCalculator):
         def isRunning(process=None):
             ''' Check mpi is running'''
             return process.poll() is None
-        runfile = get_file_name('.dat', self.label)
+        runfile = get_file_name('.dat', self.label, absolute_directory=False)
         outfile = get_file_name('.log', self.label)
         olddir = os.getcwd()
         abs_dir = os.path.join(olddir, self.directory)
         try:
             os.chdir(abs_dir)
             if self.command is None:
-                self.command = 'openmx %s > %s'
-            command = self.command
+                self.command = 'openmx'
+            command = self.command + ' %s > %s'
             command = command % (runfile, outfile)
             self.prind(command)
             p = subprocess.Popen(command, shell=True, universal_newlines=True)
@@ -178,7 +176,7 @@ class OpenMX(FileIOCalculator):
             return process.poll() is None
         processes = self.processes
         threads = self.threads
-        runfile = get_file_name('.dat', self.label)
+        runfile = get_file_name('.dat', self.label, absolute_directory=False)
         outfile = get_file_name('.log', self.label)
         olddir = os.getcwd()
         abs_dir = os.path.join(olddir, self.directory)
@@ -460,6 +458,9 @@ class OpenMX(FileIOCalculator):
         # Contruct the command to send to the operating system
         abs_dir = os.getcwd()
         command = ''
+        self.prind(self.command)
+        if self.command is None:
+            self.command = 'openmx'
         # run processes specified by the system variable OPENMX_COMMAND
         if processes is None:
             command += os.environ.get('OPENMX_COMMAND')
@@ -471,7 +472,9 @@ class OpenMX(FileIOCalculator):
             if threads is None:
                 threads_string = ''
             command += 'mpirun -np ' + \
-                str(processes) + ' openmx %s' + threads_string + ' > %s'
+                str(processes) + ' ' + self.command + ' %s ' + threads_string + ' |tee %s'
+                #str(processes) + ' openmx %s' + threads_string + ' > %s'
+
         if runfile is None:
             runfile = abs_dir + '/' + self.prefix + '.dat'
         if outfile is None:

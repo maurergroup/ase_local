@@ -1,4 +1,3 @@
-from __future__ import division
 from math import cos, sin, sqrt
 from os.path import basename
 
@@ -347,14 +346,15 @@ class View:
 
         colorscale, cmin, cmax = self.colormode_data
         N = len(colorscale)
+        colorswhite = colorscale + ['#ffffff']
         if cmin == cmax:
             indices = [N // 2] * len(self.atoms)
         else:
-            scalars = self.get_color_scalars()
+            scalars = np.ma.array(self.get_color_scalars())
             indices = np.clip(((scalars - cmin) / (cmax - cmin) * N +
                                0.5).astype(int),
                               0, N - 1)
-        return [colorscale[i] for i in indices]
+        return [colorswhite[i] for i in indices.filled(N)]
 
     def get_color_scalars(self, frame=None):
         if self.colormode == 'tag':
@@ -375,6 +375,10 @@ class View:
                               skin=0, self_interaction=False, bothways=True)
             nl.update(self.atoms)
             return [len(nl.get_neighbors(i)[0]) for i in range(n)]
+        else:
+            scalars = np.array(self.atoms.get_array(self.colormode),
+                               dtype=float)
+            return np.ma.array(scalars, mask=np.isnan(scalars))
 
     def get_covalent_radii(self, atoms=None):
         if atoms is None:
@@ -388,9 +392,6 @@ class View:
         offset[:2] -= 0.5 * self.window.size
         X = np.dot(self.X, axes) - offset
         n = len(self.atoms)
-
-        # extension for partial occupancies
-        tags = self.atoms.get_tags()
 
         # The indices enumerate drawable objects in z order:
         self.indices = X[:, 2].argsort()
@@ -441,7 +442,8 @@ class View:
                 ra = d[a]
                 if visible[a]:
                     try:
-                        site_occ = self.atoms.info['occupancy'][tags[a]]
+                        kinds = self.atoms.arrays['spacegroup_kinds']
+                        site_occ = self.atoms.info['occupancy'][kinds[a]]
                         # first an empty circle if a site is not fully occupied
                         if (np.sum([v for v in site_occ.values()])) < 1.0:
                             fill = '#ffffff'

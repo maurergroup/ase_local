@@ -9,47 +9,24 @@ import warnings
 from importlib import import_module
 from math import sin, cos, radians, atan2, degrees
 from contextlib import contextmanager
-
-try:
-    from math import gcd
-except ImportError:
-    from fractions import gcd
-
-try:
-    from pathlib import PurePath
-except ImportError:
-    class PurePath:
-        pass
+from math import gcd
+from pathlib import PurePath, Path
 
 import numpy as np
 
-from ase.utils.formula import formula_hill, formula_metal
+from ase.formula import formula_hill, formula_metal
 
 __all__ = ['exec_', 'basestring', 'import_module', 'seterr', 'plural',
            'devnull', 'gcd', 'convert_string_to_fd', 'Lock',
-           'opencew', 'OpenLock', 'rotate', 'irotate', 'givens',
+           'opencew', 'OpenLock', 'rotate', 'irotate', 'pbc2pbc', 'givens',
            'hsv2rgb', 'hsv', 'pickleload', 'FileNotFoundError',
            'formula_hill', 'formula_metal', 'PurePath']
 
 
-# Python 2+3 compatibility stuff:
-if sys.version_info[0] > 2:
-    import builtins
-    exec_ = getattr(builtins, 'exec')
-    basestring = str
-    from io import StringIO
-    pickleload = functools.partial(pickle.load, encoding='bytes')
-    FileNotFoundError = getattr(builtins, 'FileNotFoundError')
-else:
-    class FileNotFoundError(OSError):
-        pass
-
-    # Legacy Python:
-    def exec_(code, dct):
-        exec('exec code in dct')
-    basestring = basestring
-    from StringIO import StringIO
-    pickleload = pickle.load
+# Python 2+3 compatibility stuff (let's try to remove these things):
+basestring = str
+from io import StringIO
+pickleload = functools.partial(pickle.load, encoding='bytes')
 StringIO  # appease pyflakes
 
 
@@ -60,8 +37,10 @@ def seterr(**kwargs):
     See np.seterr() for more details.
     """
     old = np.seterr(**kwargs)
-    yield
-    np.seterr(**old)
+    try:
+        yield
+    finally:
+        np.seterr(**old)
 
 
 def plural(n, word):
@@ -77,6 +56,7 @@ def plural(n, word):
 
 class DevNull:
     encoding = 'UTF-8'
+    closed = False
 
     def write(self, string):
         pass
@@ -115,8 +95,8 @@ def convert_string_to_fd(name, world=None):
         return devnull
     if name == '-':
         return sys.stdout
-    if isinstance(name, basestring):
-        return open(name, 'w')
+    if isinstance(name, (basestring, PurePath)):
+        return open(str(name), 'w')  # str for py3.5 pathlib
     return name  # we assume name is already a file-descriptor
 
 
@@ -218,7 +198,7 @@ def search_current_git_hash(arg, world=None):
         return None
 
     # Check argument
-    if isinstance(arg, basestring):
+    if isinstance(arg, str):
         # Directory path
         dpath = arg
     else:
@@ -322,6 +302,12 @@ def irotate(rotation, initial=np.identity(3)):
     return x, y, z
 
 
+def pbc2pbc(pbc):
+    newpbc = np.empty(3, bool)
+    newpbc[:] = pbc
+    return newpbc
+
+
 def hsv2rgb(h, s, v):
     """http://en.wikipedia.org/wiki/HSL_and_HSV
 
@@ -378,6 +364,21 @@ def longsum(x):
     return float(np.asarray(x, dtype=np.longdouble).sum())
 
 
+@contextmanager
+def workdir(path, mkdir=False):
+    """Temporarily change, and optionally create, working directory."""
+    path = Path(path)
+    if mkdir:
+        path.mkdir(parents=True, exist_ok=True)
+
+    olddir = os.getcwd()
+    os.chdir(str(path))  # py3.6 allows chdir(path) but we still need 3.5
+    try:
+        yield  # Yield the Path or dirname maybe?
+    finally:
+        os.chdir(olddir)
+
+
 def iofunction(func, mode):
     """Decorate func so it accepts either str or file.
 
@@ -385,11 +386,11 @@ def iofunction(func, mode):
 
     @functools.wraps(func)
     def iofunc(file, *args, **kwargs):
-        openandclose = isinstance(file, basestring)
+        openandclose = isinstance(file, (basestring, PurePath))
         fd = None
         try:
             if openandclose:
-                fd = open(file, mode)
+                fd = open(str(file), mode)
             else:
                 fd = file
             obj = func(fd, *args, **kwargs)
@@ -420,7 +421,7 @@ def write_json(self, fd):
     _write_json(fd, self)
 
 
-@classmethod
+@classmethod  # type: ignore
 def read_json(cls, fd):
     """Read new instance from JSON file."""
     from ase.io.jsonio import read_json as _read_json
@@ -467,3 +468,61 @@ def experimental(func):
                       ExperimentalFeatureWarning)
         return func(*args, **kwargs)
     return expfunc
+
+
+def lazymethod(meth):
+    """Decorator for lazy evaluation and caching of data.
+
+    Example::
+
+      class MyClass:
+
+         @lazymethod
+         def thing(self):
+             return expensive_calculation()
+
+    The method body is only executed first time thing() is called, and
+    its return value is stored.  Subsequent calls return the cached
+    value."""
+    name = meth.__name__
+
+    @functools.wraps(meth)
+    def getter(self):
+        try:
+            cache = self._lazy_cache
+        except AttributeError:
+            cache = self._lazy_cache = {}
+
+        if name not in cache:
+            cache[name] = meth(self)
+        return cache[name]
+    return getter
+
+
+def warn_legacy(feature_name):
+    warnings.warn(
+        f'The {feature_name} feature is untested and ASE developers do not '
+        'know whether it works or how to use it.  Please rehabilitate it '
+        '(by writing unittests) or it may be removed.',
+        FutureWarning)
+
+
+def lazyproperty(meth):
+    """Decorator like lazymethod, but making item available as a property."""
+    return property(lazymethod(meth))
+
+
+def deprecated(msg):
+    """Return a decorator deprecating a function.
+
+    Use like @deprecated('warning message and explanation')."""
+    def deprecated_decorator(func):
+        @functools.wraps(func)
+        def deprecated_function(*args, **kwargs):
+            warning = msg
+            if not isinstance(warning, Warning):
+                warning = FutureWarning(warning)
+            warnings.warn(warning)
+            return func(*args, **kwargs)
+        return deprecated_function
+    return deprecated_decorator

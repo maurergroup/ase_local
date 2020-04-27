@@ -1,3 +1,4 @@
+
 .. _releasenotes:
 
 =============
@@ -9,28 +10,357 @@ Git master branch
 
 :git:`master <>`.
 
-* Added interface to :mod:`ACE-Molecule <ase.calculators.acemolecule>`
 
-* Support for reading and writing DL_POLY format.
+* Read and write support for qball sys file format.
 
-* Added :mod:`ase.geometry.bravais` module to represent primitive Bravais
-  lattices and data relating to Brillouin zones.
+* Functions for attaching structures in :mod:`attach <ase.build>` introduced.
+
+* Standardize optimizers maximum step variable name to maxstep and default value to 0.2 for all optimizers.
+
+* The tangent estimates used to make the nudged elastic band (NEB) plots are
+  slightly improved to use center, rather than forward differences. This does
+  not affect how NEBs are run; only how they are displayed.
+
+* :meth:`ase.Atoms.get_calculator` is deprecated.  Use
+  ``atoms.calc`` instead.
+
+* :meth:`ase.Atoms.set_calculator` is deprecated.  Use
+  ``atoms.calc = calc`` instead.
+
+* ``del atoms.calc`` is deprecated.  Use ``atoms.calc = None`` instead.
+
+* The ``ase db db1.db <selection> --insert-into db2.db`` command now respects
+  ``--limit`` and ``--offset``.
+
+* Fixed ``kpts`` option of :class:`ase.calculators.espresso.Espresso`
+  so that specifying a Γ-point calculation with ``kpts=(1, 1, 1)``
+  does not enable the optimized codepath (which halves memory and
+  cpu). Use ``kpts=None`` to enable the optimized codepath.
+
+* Removed interface to :ref:`Dacapo <jacapo>` due to lack of users and
+  maintainers.
+
+* Removed interface to `FindSym
+  <https://stokes.byu.edu/iso/findsym.php>`_ due to lack of users and
+  maintainers.  If you need this, please find it in git history,
+  make it work, and write tests.
+
+* Removed old GUI modules which were never fully ported to Tkinter.
+  If you miss them, please find them in git history and rehabilitate
+  them.
+
+* :class:`ase.neb.NEBTools` now allows the simultaneous plotting of all bands from a trajectory of a nudged elastic band calculation (or similar); this funciton is also available at the command line as ``ase nebplot neb.traj``.
+
+* The image-dependent pair-potential (IDPP) interpolation scheme for connecting states---i.e., in a saddle-point search---has been moved into the method :func:`ase.neb.idpp_interpolate`. This method is a more feature-rich version than that accessible via :meth:`ase.neb.NEB.interpolate`.
+
+* Test suite now uses `pytest <https://docs.pytest.org/>`_.
+  This means it requires pytest and optionally
+  `pytest-xdist <https://github.com/pytest-dev/pytest-xdist>`_ for
+  parallelization.  The ``ase test`` command works as before although
+  its output will be different and improved.
+
+* Many tests have been improved and simplified, making use of pytest
+  for parametrization and test fixtures.
+
+* The continuous integration tests on Gitlab now use custom dockers.
+  The docker files can be found at https://gitlab.com/ase/ase-dockers.
+
+* Some calculators can now be tested via Gitlab's CI.
+
+* Code coverage statistics are now available on https://ase.gitlab.io/ase.
+  They currently exclude calculators and IO formats.
+
+* Our CI now uses mypy_ for static analysis of the code.
+
+* The deprecated ``atoms.cell.pbc`` has been removed.
+
+* Multiple improvements and bugfixes to OpenMX calculator;
+  OpenMX calculator now supports OpenMX 3.9.
+
+* Added Russian translation.
+
+* Write support has been added for the Vasp 5 XDATCAR file format.
+
+* Added :mod:`ORCA <ase.calculators.orca>` calculator.
+
+* Added :mod:`GAMESS-US <ase.calculators.gamess_us>` calculator.
+
+* Completely refactored :mod:`Gaussian <ase.calculators.gaussian>` calculator.
+  The new calculator should be completely backwards compatible with the
+  previous one, while having a more flexible design and supporting more
+  keyword arguments.
+
+* Added :mod:`GaussianOptimizer <ase.calculators.gaussian>` and
+  :mod:`GaussianIRC <ase.calculators.gaussian>` classes for performing geometry
+  optimization and IRC calculations with the Gaussian calculator. These
+  classes are the canonical way to use Gaussian's built-in geometry
+  optimization routines.
+
+* Added :class:`Pyberny <ase.optimize.Berny>` geometry optimizer.
+
+* Added Z-matrix parser for use in input/output file readers.
+
+* Reduced code duplication in the :mod:`ase.ga` module by incorporating the
+  'bulk' GA functionality into the corresponding 'standard' modules.
+  Using the now deprecated 'bulk' GA modules (i.e.
+  :mod:`ase.ga.bulk_startgenerator`, :mod:`ase.ga.bulk_crossovers`,
+  :mod:`ase.ga.bulk_mutations` and :mod:`ase.ga.bulk_utilities`) raises
+  a warning with pointers to the corresponding 'standard' modules.
+
+* Extended the genetic algorithm to cases where 1 or 2 cell vectors are
+  part of the global optimization problem, which can be useful in searching
+  for nanowire and thin film structures.
+
+* Added a new tutorial on molecular crystal structure prediction using
+  a genetic algorithm, see :ref:`ga_molecular_crystal_tutorial`.
+
+.. _mypy: http://mypy-lang.org/
+
+
+Version 3.19.1
+==============
+
+4 April 2020: :git:`3.19.1 <../3.19.1>`
+
+* Update png writer to be compatible with matplotlib 3.2.
+
+
+Version 3.19.0
+==============
+
+16 December 2019: :git:`3.19.0 <../3.19.0>`
+
+General changes:
+
+* :func:`ase.build.bulk` now supports elements with tetragonal and
+  rhombohedral lattices.
+
+* The ``rank`` and ``size`` constants from the :mod:`ase.parallel` module have
+  been deprecated.  Use ``world.rank`` and ``world.size`` instead
+  (and ``from ase.parallel import world``).
+
+* ``atoms.set_masses('most_common')`` now sets the masses of each
+  element according to most common isotope as stored in
+  ``ase.data.atomic_masses_common``.
+
+* :mod:`ase.utils.parsemath` added to utils. This module parses simple
+  mathematical expressions and returns their numerical value.
+
+* Plotting functions (such as band structure, EOS, ...)
+  no longer show the figure by default.
+
+* :class:`~ase.Atoms` constructor now accepts ``velocities`` as keyword.
+
+* Documentation: New set of :ref:`introductory ASE tutorials <gettingstarted>`.
+
+* More detailed output of ``ase info --formats``.
+
+* For completeness, :mod:`ase.lattice` now also supports the 1D
+  Bravais lattice.
+
+Algorithms:
+
+* Added :class:`~ase.md.analysis.DiffusionCoefficient` so one can
+  calculate atom/molecule mobility from trajectory as a function of
+  time.
+
+* Added general linear parametric constraints :class:`ase.constraints.FixParametricRelations`,
+  :class:`ase.constraints.FixScaledParametricRelations`, and
+  :class:`ase.constraints.FixCartesianParametricRelations` to
+  :mod:`ase.constraints`. These constraints are based off the work
+  in: https://arxiv.org/abs/1908.01610, and allows for the positions and cell of a
+  structure to be optimized in a reduced parameter space.
+
+* Added :func:`ase.build.graphene` for building graphene monolayers.
+
+* Added :mod:`ase.md.switch_langevin` module for thermodynamic
+  integration via MD simulations.
+
+* Implemented "dynamic" or "ideal gas" contribution from atomic
+  momenta to stress tensor Use :meth:`<ase.Atoms.get_stress>`, e.g.,
+  ``atoms.get_stress(include_ideal_gas=True)``.
+
+Calculators:
+
+* Added :mod:`Q-Chem <ase.calculators.qchem>` calculator.
+
+* Added :class:`~ase.calculators.psi4.Psi4` calculator.
+
+* Added :class:`~ase.calculators.demonnano.DemonNano` calculator.
+
+* Added :mod:`OpenKIM <ase.calculators.kim>` calculator,
+  a special calculator for `OpenKim <https://openkim.org/>`_ models.
+
+* Gulp calculator now provides stress tensor.
+
+* The :mod:`NWChem <ase.calculators.nwchem>` calculator has been completely rewritten, and now supports
+  `DFT <https://github.com/nwchemgit/nwchem/wiki/Density-Functional-Theory-for-Molecules>`_,
+  `SCF (Hartree Fock) <https://github.com/nwchemgit/nwchem/wiki/Hartree-Fock-Theory-for-Molecules>`_,
+  `MP2 <https://github.com/nwchemgit/nwchem/wiki/MP2>`_,
+  `CCSD <https://github.com/nwchemgit/nwchem/wiki/CCSD>`_,
+  and `TCE <https://github.com/nwchemgit/nwchem/wiki/TCE>`_ calculations with gaussian-type orbitals.
+  The calculator also now supports
+  `plane-wave calculations <https://github.com/nwchemgit/nwchem/wiki/Plane-Wave-Density-Functional-Theory>`_,
+  including band structure calculations through ASE's :class:`~ase.dft.band_structure.BandStructure` utilities.
+  To facilitate these changes, the format of the calculator keywords has been changed. Please read the updated
+  :mod:`NWChem <ase.calculators.nwchem>` calculator documentation for more details.
+
+* :class:`~ase.calculators.siesta.siesta.Siesta` calculator refactored.
+  The Siesta calculator now supports the band structure machinery.
+  There is only a single Siesta calculator now covering all versions of Siesta,
+  consistently with other ASE calculators.
+
+* Added :mod:`~ase.calculators.mixing` module for the linear
+  combination of arbitrary :mod:`~ase.calculators`.
+
+* New :class:`ase.calculators.idealgas.IdealGas` calculator for
+  non-interacting atoms.  The calculator does nothing.  This can be
+  useful for testing.
+
+* :class:`~ase.calculators.emt.EMT` calculator now support
+  atom-specific energies as per ``atoms.get_energies()``.
+
+I/O:
+
+* Read and write support for RMCProfile (rmc6f) file format.
+
+* Write support for Materials Studio xtd files.
+
+* More efficient storage of the "data" part of rows in the :mod:`ase.db`
+  database.  NumPy arrays are now stored in binary format instead of as text
+  thereby using approximately a factor of two less space when storing numbers
+  of ``np.float64``.
+
+* The :mod:`~ase.io.pov` module can now render high-order bonds.
+
+* :class:`~ase.Atoms` now provides the general-purpose JSON mechanism
+  from :mod:`ase.io.jsonio`.
+
+* Added :mod:`ase.data.pubchem` module to search for structures
+  in the `PubChem <https://pubchem.ncbi.nlm.nih.gov/>`_ database.
+
+GUI:
+
+* It is now possible to copy and paste atoms: The "add atoms" function
+  (Ctrl+A) will suggest the atoms in the current selection by default.
+
+Version 3.18.2
+==============
+
+15 December 2019: :git:`3.18.2 <../3.18.2>`
+
+* Fix an issue with the binary package (wheel) of 3.18.1.
+  No bugfixes as such.
+
+Version 3.18.1
+==============
+
+20 September 2019: :git:`3.18.1 <../3.18.1>`
+
+* Multiple bugfixes.  Most importantly, deprecate ``atoms.cell.pbc``
+  in order to avoid complexities from dealing with two
+  ways of manipulating this piece of information.
+  Use ``atoms.pbc`` instead; this works the same as always.
+  Also, the :class:`~ase.cell.Cell` object now exposes almost the entire
+  ``ndarray`` interface.  For a list of smaller bugfixes, see the git log.
+
+Version 3.18.0
+==============
+
+19 July 2019: :git:`3.18.0 <../3.18.0>`
+
+General changes:
+
+* ASE no longer supports Python2.
+
+* ``atoms.cell`` is now a :class:`~ase.cell.Cell` object.
+  This object resembles a 3x3 array and also provides shortcuts to many common
+  operations.
+
+* Preliminary :class:`~ase.formula.Formula` type added.  Collects all
+  formula manipulation functionality in one place.
+
+* :class:`~ase.symbols.Symbols` objects, like ``atoms.symbols``, now have a
+  :attr:`~ase.symbols.Symbols.formula` attribute.
+
+* Added classes to represent primitive Bravais lattices and data
+  relating to Brillouin zones to :mod:`ase.lattice`.  Includes 2D
+  lattices.
 
 * New :class:`~ase.dft.kpoints.BandPath` class to represent a band path
   specification like ``'GXL'`` along with actual k-point coordinates.
   :class:`~ase.dft.band_structure.BandStructure` objects now have a band
   path.
 
-* Improved JSON support.  :ref:`cli` tools like :program:`ase
-  band-structure` and :program:`ase reciprocal` now work with
-  JSON representations of band structures and paths.
+* :func:`ase.dft.kpoints.bandpath` now returns a
+  :class:`~ase.dft.kpoints.BandPath` object.  Generation
+  of band paths now works for (almost) any cell.
 
-* ``atoms.cell`` is now a :class:`~ase.geometry.cell.Cell` object.
-  This object resembles a 3x3 array and also provides shortcuts to many common
-  operations.
+* Use ``atoms.cell.bandpath()`` as a shortcut to generate band paths.
 
 * New holonomic :class:`constraint <ase.constraints.FixLinearTriatomic>`
   for trilinear molecules.
+
+* Added ``ase info --calculators`` option which shows a list of
+  calculators and whether they appear to be installed.
+
+* Added :func:`ase.build.surfaces_with_termination.surfaces_with_termination`,
+  a tool to build surfaces with a particular termination.
+
+* Use the shortcut ``with ase.utils.workdir('mydir', mkdir=True):
+  <code>`` to temporarily change directories.
+
+* The ``ase test`` command now properly autocompletes test names and
+  calculator names.
+
+* Added keyword, ``atoms.wrap(pretty_translation=True)``, to minimize
+  the scaled positions of the atoms.
+
+Calculators:
+
+* Added interface to :mod:`ACE-Molecule <ase.calculators.acemolecule>`.
+
+* NWChem calculator now supports TDDFT runs.
+
+* Multiple improvements to the ONETEP Calculator. Input files can now be
+  written that specify LDOS, bsunfolding and many other functionalities.
+
+* Calculation of stress tensor implemented for
+  :class:`~ase.calculators.emt.EMT` potential.
+
+* The :class:`~ase.calculators.octopus.Octopus` calculator now
+  provides the stress tensor.
+
+* Reworked :class:`~ase.calculators.lammpsrun.LAMMPS` calculator.  The
+  calculator should now behave more consistently with other ASE
+  calculators.
+
+* Gromacs calculator updated to work with newer Gromacs.
+
+* Fleur calculator updated to work with newer Fleur.
+
+* Added :class:`~ase.calculators.ACN`, a QM/MM forcefield for acetonitrile.
+
+* Improved eigenvalue parsing with Siesta calculator.
+
+Algorithms:
+
+* Determine Bravais lattice for any 2D or 3D cell using
+  ``atoms.cell.get_bravais_lattice()``.
+
+* Added function to Minkowski reduce a cell.
+
+* Improved stability of Niggli reduction algorithm.
+
+* Supercell generation using ``ase.build.make_supercell()`` now uses
+  a constructive algorithm instead of cutting which was prone to tolerance
+  errors.
+
+* Setting an MD velocity distribution now preserves the temperature
+  by default.
+
+* :class:`Analysis tool <ase.geometry.analysis.Analysis>` for extracting
+  bond lengths and angles from atoms.
 
 * Dynamics and structure optimizers can now run as an iterator using the
   new ``irun()`` mechanism::
@@ -42,29 +372,60 @@ Git master branch
   variable indicates whether the current iteration meets the convergence
   criterion, although this behaviour may change in future versions.
 
-* :class:`Analysis tool <ase.geometry.analysis.Analysis>` for extracting
-  bond lengths and angles from atoms.
-
-* Multiple improvements to the ONETEP Calculator. Input files can now be
-  written that specify LDOS, bsunfolding and many other functionalities.
-
-* NWChem calculator now supports TDDFT runs.
-
-* The genetic algorithm module :mod:`ase.ga` now has operators for crystal structure prediction. See :ref:`ga_bulk_tutorial`.
-
 * The genetic algorithm module :mod:`ase.ga` now has operators for crystal
   structure prediction. See :ref:`ga_bulk_tutorial`.
 
-* New :func:`ase.geometry.dimensionality.analyze_dimensionality` function.  See:
-  :ref:`dimtutorial`.
+* New :func:`ase.geometry.dimensionality.analyze_dimensionality` function.
+  See: :ref:`dimtutorial`.
 
 * New :func:`ase.utils.deltacodesdft.delta` function:  Calculates the
   difference between two DFT equation-of-states.  See the new :ref:`dcdft tut`
   tutorial.
 
-* Calculation of stress tensor implemented for
-  :class:`~ase.calculators.emt.EMT` potential
+* Holonomic :class:`~ase.constraints.FixLinearTriatomic` for QM/MM
+  calculations.
 
+* The :class:`~ase.neighborlist.NeighborList` now uses kdtree from Scipy
+  for improved performance.  It also uses Minkowsky reduction
+  to improve performance for unusually shaped cells.
+
+I/O:
+
+* Database supports user defined tables
+
+* Preliminary :class:`~ase.formula.Formula` type added.  Collects all
+  formula manipulation functionality in one place.
+
+* Support for reading and writing DL_POLY format.
+
+* Support for reading CP2K DCD format.
+
+* Support for EON .con files with multiple images.
+
+* Support for writing Materials Studio xtd format.
+
+* Improved JSON support.  :ref:`cli` tools like :program:`ase
+  band-structure` and :program:`ase reciprocal` now work with
+  JSON representations of band structures and paths.
+
+* Support reading CIF files through the
+  `Pycodcif <http://wiki.crystallography.net/cod-tools/CIF-parser/>`_
+  library.  This can be useful for CIF features that are not supported
+  by the internal CIF parser.
+
+* :ref:`MySQL and MariaDB <MySQL_server>` are supported as database backend
+
+* Support for writing isosurface information to POV format
+  with :func:`ase.io.pov.add_isosurface_to_pov`
+
+GUI:
+
+ * Quickinfo dialog automatically updates when switching image.
+
+ * Display information about custom arrays on Atoms objects; allow colouring
+   by custom arrays.
+
+ * Improved color scales.
 
 Version 3.17.0
 ==============
@@ -210,6 +571,8 @@ GUI:
   in GUI.
 
 * Added Basque translation.
+
+* Added French translation.
 
 Version 3.16.2
 ==============
@@ -546,7 +909,7 @@ Version 3.11.0
 
 10 May 2016: :git:`3.11.0 <../3.11.0>`.
 
-* Special `\mathbf{k}`-points from the [Setyawana-Curtarolo]_ paper was added:
+* Special `\mathbf{k}`-points from the [Setyawan-Curtarolo]_ paper was added:
   :data:`ase.dft.kpoints.special_points`.
 
 * New :mod:`ase.collections` module added.  Currently contains the G2 database
@@ -739,7 +1102,7 @@ Version 3.6.0
 * New ase.lattice.bulk() function.  Will replace old
   ase.build.bulk() function.  The new one will produce a more
   natural hcp lattice and it will use experimental data for crystal
-  structure and lattice constants if not provided explicitely.
+  structure and lattice constants if not provided explicitly.
 
 * New values for ase.data.covalent_radii from Cordeo *et al.*.
 
@@ -805,7 +1168,7 @@ Version 3.5.0
 * Implementation of the Dimer method.
 
 
-.. _ASAP: http://wiki.fysik.dtu.dk/asap
+.. _ASAP: https://wiki.fysik.dtu.dk/asap
 .. _GPAW: https://wiki.fysik.dtu.dk/gpaw/documentation/xc/vdwcorrection.html
 
 

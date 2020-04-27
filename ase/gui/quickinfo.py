@@ -1,7 +1,5 @@
-# -*- encoding: utf-8
 "Module for displaying information about the system."
 
-from __future__ import unicode_literals
 
 import numpy as np
 from ase.gui.i18n import _
@@ -21,6 +19,7 @@ def info(gui):
     atoms = gui.atoms
 
     tokens = []
+
     def add(token=''):
         tokens.append(token)
 
@@ -46,13 +45,13 @@ def info(gui):
         add()
         add(_('Unit cell [Å]:'))
         add(ucellformat.format(*atoms.cell.ravel()))
-        periodic = [[_('no'), _('yes')][periodic] for periodic in atoms.pbc]
+        periodic = [[_('no'), _('yes')][int(periodic)]
+                    for periodic in atoms.pbc]
         # TRANSLATORS: This has the form Periodic: no, no, yes
         add(_('Periodic: {}, {}, {}').format(*periodic))
         add()
 
-        uc = atoms.unitcell
-        cellpar = uc.cellpar()
+        cellpar = atoms.cell.cellpar()
         add()
         add(_('Lengths [Å]: {:.3f}, {:.3f}, {:.3f}').format(*cellpar[:3]))
         add(_('Angles: {:.1f}°, {:.1f}°, {:.1f}°').format(*cellpar[3:]))
@@ -67,6 +66,14 @@ def info(gui):
                 add(_('Unit cell is fixed.'))
             else:
                 add(_('Unit cell varies.'))
+
+        if atoms.pbc[:2].all():
+            try:
+                lat = atoms.cell.get_bravais_lattice()
+            except RuntimeError:
+                add(_('Could not recognize the lattice type'))
+            else:
+                add(_('Reduced Bravais lattice:\n{}').format(lat))
 
 
         # Print electronic structure information if we have a calculator
@@ -84,7 +91,7 @@ def info(gui):
                         quantity = get_quantity()
                 except Exception as err:
                     quantity = None
-                    errmsg = ('An error occured while retrieving {} '
+                    errmsg = ('An error occurred while retrieving {} '
                               'from the calculator: {}'.format(name, err))
                     warnings.warn(errmsg)
                 return quantity

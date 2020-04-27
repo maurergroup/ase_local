@@ -1,4 +1,3 @@
-from __future__ import print_function
 import numpy as np
 
 from ase.calculators.calculator import Calculator
@@ -242,7 +241,7 @@ class Embedding:
         """Update point-charge positions."""
         # Wrap point-charge positions to the MM-cell closest to the
         # center of the the QM box, but avoid ripping molecules apart:
-        qmcenter = self.qmatoms.cell.diagonal() / 2
+        qmcenter = self.qmatoms.positions.mean(axis=0)
         # if counter ions are used, then molecule_size has more than 1 value
         if self.mmatoms.calc.name == 'combinemm':
             mask1 = self.mmatoms.calc.mask
@@ -261,8 +260,14 @@ class Embedding:
             pos = (self.mmatoms.positions, )
             apm1 = self.molecule_size
             apm2 = self.molecule_size
-            spm1 = self.mmatoms.calc.sites_per_mol
-            spm2 = self.mmatoms.calc.sites_per_mol
+            # This is only specific to calculators where apm != spm, 
+            # i.e. TIP4P. Non-native MM calcs do not have this attr.
+            if hasattr(self.mmatoms.calc, 'sites_per_mol'):
+                spm1 = self.mmatoms.calc.sites_per_mol
+                spm2 = self.mmatoms.calc.sites_per_mol
+            else:
+                spm1 = self.molecule_size
+                spm2 = spm1
             mask1 = np.ones(len(self.mmatoms), dtype=bool)
             mask2 = mask1
 
@@ -345,6 +350,33 @@ class LJInteractionsGeneral:
     def __init__(self, sigmaqm, epsilonqm, sigmamm, epsilonmm,
                  qm_molecule_size, mm_molecule_size=3,
                  rc=np.Inf, width=1.0):
+        """General Lennard-Jones type explicit interaction.
+
+        sigmaqm: array
+            Array of sigma-parameters which should have the length of the QM
+            subsystem
+        epsilonqm: array
+            As sigmaqm, but for epsilon-paramaters
+        sigmamm: Either array (A) or tuple (B)
+            A (no counterions): 
+                Array of sigma-parameters with the length of the smallest 
+                repeating atoms-group (i.e. molecule) of the MM subsystem
+            B (counterions):
+                Tuple: (arr1, arr2), where arr1 is an array of sigmas with
+                the length of counterions in the MM subsystem, and 
+                arr2 is the array from A.
+        epsilonmm: array or tuple
+            As sigmamm but for epsilon-parameters.
+        qm_molecule_size: int
+            number of atoms of the smallest repeating atoms-group (i.e. 
+            molecule) in the QM subystem (often just the number of atoms 
+            in the QM subsystem)
+        mm_molecule_size: int
+            as qm_molecule_size but for the MM subsystem. Will be overwritten
+            if counterions are present in the MM subsystem (via the CombineMM
+            calculator)
+
+        """
         self.sigmaqm = sigmaqm
         self.epsilonqm = epsilonqm
         self.sigmamm = sigmamm
@@ -365,19 +397,21 @@ class LJInteractionsGeneral:
 
         # loop over possible multiple mm calculators
         # currently 1 or 2, but could be generalized in the future...
-        if mmatoms.calc.name == 'combinemm':
-            mask1 = mmatoms.calc.mask
-            mask2 = ~mask1
-            apm1 = mmatoms.calc.apm1
-            apm2 = mmatoms.calc.apm2
-            apm = (apm1, apm2)
-        else:
-            apm1 = self.mms
-            mask1 = np.ones(len(mmatoms), dtype=bool)
-            mask2 = mask1
-            apm = (apm1, )
-            sigma = (sigma, )
-            epsilon = (epsilon, )
+        apm1 = self.mms
+        mask1 = np.ones(len(mmatoms), dtype=bool)
+        mask2 = mask1
+        apm = (apm1, )
+        sigma = (sigma, )
+        epsilon = (epsilon, )
+        if hasattr(mmatoms.calc, 'name'):
+            if mmatoms.calc.name == 'combinemm':
+                mask1 = mmatoms.calc.mask
+                mask2 = ~mask1
+                apm1 = mmatoms.calc.apm1
+                apm2 = mmatoms.calc.apm2
+                apm = (apm1, apm2)
+                sigma = sigma[0]  # Was already loopable 2-tuple
+                epsilon = epsilon[0]
 
         mask = (mask1, mask2)
         e_all = 0
@@ -705,3 +739,4 @@ class ForceQMMM(Calculator):
 
         self.results['forces'] = forces
         self.results['energy'] = 0.0
+

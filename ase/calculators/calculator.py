@@ -2,10 +2,15 @@ import os
 import copy
 import subprocess
 from math import pi, sqrt
+import pathlib
+from typing import Union, Optional, List, Set, Dict, Any
 
 import numpy as np
 
-from ase.dft.kpoints import bandpath, monkhorst_pack
+from ase.cell import Cell
+from ase.dft.kpoints import monkhorst_pack
+from ase.outputs import Properties, all_outputs
+from ase.utils import jsonable
 
 
 class CalculatorError(RuntimeError):
@@ -70,32 +75,48 @@ class PropertyNotPresent(CalculatorError):
     with the rest of the results, without being a fatal ReadError."""
 
 
-def compare_atoms(atoms1, atoms2, tol=1e-15):
-    """Check for system changes since last calculation."""
+def compare_atoms(atoms1, atoms2, tol=1e-15, excluded_properties=None):
+    """Check for system changes since last calculation.  Properties in
+    ``excluded_properties`` are not checked."""
     if atoms1 is None:
         system_changes = all_changes[:]
     else:
         system_changes = []
-        if not equal(atoms1.positions, atoms2.positions, tol):
-            system_changes.append('positions')
-        if not equal(atoms1.numbers, atoms2.numbers):
-            system_changes.append('numbers')
-        if not equal(atoms1.cell, atoms2.cell, tol):
-            system_changes.append('cell')
-        if not equal(atoms1.pbc, atoms2.pbc):
-            system_changes.append('pbc')
-        if not equal(atoms1.get_initial_magnetic_moments(),
-                     atoms2.get_initial_magnetic_moments(), tol):
-            system_changes.append('initial_magmoms')
-        if not equal(atoms1.get_initial_charges(),
-                     atoms2.get_initial_charges(), tol):
-            system_changes.append('initial_charges')
+
+        properties_to_check = set(all_changes)
+        if excluded_properties:
+            properties_to_check -= set(excluded_properties)
+
+        # Check properties that aren't in Atoms.arrays but are attributes of
+        # Atoms objects
+        for prop in ['cell', 'pbc']:
+            if prop in properties_to_check:
+                properties_to_check.remove(prop)
+                if not equal(getattr(atoms1, prop), getattr(atoms2, prop),
+                             tol):
+                    system_changes.append(prop)
+
+        arrays1 = set(atoms1.arrays)
+        arrays2 = set(atoms2.arrays)
+
+        # Add any properties that are only in atoms1.arrays or only in
+        # atoms2.arrays (and aren't excluded).  Note that if, e.g. arrays1 has
+        # `initial_charges` which is merely zeros and arrays2 does not have
+        # this array, we'll still assume that the system has changed.  However,
+        # this should only occur rarely.
+        system_changes += properties_to_check & (arrays1 ^ arrays2)
+
+        # Finally, check all of the non-excluded properties shared by the atoms
+        # arrays.
+        for prop in properties_to_check & arrays1 & arrays2:
+            if not equal(atoms1.arrays[prop], atoms2.arrays[prop], tol):
+                system_changes.append(prop)
 
     return system_changes
 
 
 all_properties = ['energy', 'forces', 'stress', 'stresses', 'dipole',
-                  'charges', 'magmom', 'magmoms', 'free_energy']
+                  'charges', 'magmom', 'magmoms', 'free_energy', 'energies']
 
 
 all_changes = ['positions', 'numbers', 'cell', 'pbc',
@@ -103,23 +124,28 @@ all_changes = ['positions', 'numbers', 'cell', 'pbc',
 
 
 # Recognized names of calculators sorted alphabetically:
-names = ['abinit', 'ace', 'aims', 'amber', 'asap', 'castep', 'cp2k', 'crystal',
-         'demon', 'dftb', 'dftd3', 'dmol', 'eam', 'elk', 'emt', 'espresso',
-         'exciting', 'fleur', 'gaussian', 'gpaw', 'gromacs', 'gulp',
-         'hotbit', 'jacapo', 'lammpsrun',
-         'lammpslib', 'lj', 'mopac', 'morse', 'nwchem', 'octopus', 'onetep',
-         'openmx', 'siesta', 'tip3p', 'turbomole', 'vasp']
+names = ['abinit', 'ace', 'aims', 'amber', 'asap', 'castep', 'cp2k',
+         'crystal', 'demon', 'demonnano', 'dftb', 'dftd3', 'dmol', 'eam',
+         'elk', 'emt', 'espresso', 'exciting', 'ff', 'fleur', 'gamess_us',
+         'gaussian', 'gpaw', 'gromacs', 'gulp', 'hotbit', 'kim',
+         'lammpslib', 'lammpsrun', 'lj', 'mopac', 'morse', 'nwchem',
+         'octopus', 'onetep', 'openmx', 'orca', 'psi4', 'qchem', 'siesta',
+         'tip3p', 'tip4p', 'turbomole', 'vasp']
 
 
 special = {'cp2k': 'CP2K',
+           'demonnano': 'DemonNano',
            'dftd3': 'DFTD3',
            'dmol': 'DMol3',
            'eam': 'EAM',
            'elk': 'ELK',
            'emt': 'EMT',
            'crystal': 'CRYSTAL',
+           'ff': 'ForceField',
            'fleur': 'FLEUR',
+           'gamess_us': 'GAMESSUS',
            'gulp': 'GULP',
+           'kim': 'KIM',
            'lammpsrun': 'LAMMPS',
            'lammpslib': 'LAMMPSlib',
            'lj': 'LennardJones',
@@ -127,10 +153,24 @@ special = {'cp2k': 'CP2K',
            'morse': 'MorsePotential',
            'nwchem': 'NWChem',
            'openmx': 'OpenMX',
-           'tip3p': 'TIP3P'}
+           'orca': 'ORCA',
+           'qchem': 'QChem',
+           'tip3p': 'TIP3P',
+           'tip4p': 'TIP4P'}
 
 
-def get_calculator(name):
+external_calculators = {}
+
+
+def register_calculator_class(name, cls):
+    """ Add the class into the database. """
+    assert name not in external_calculators
+    external_calculators[name] = cls
+    names.append(name)
+    names.sort()
+
+
+def get_calculator_class(name):
     """Return calculator class."""
     if name == 'asap':
         from asap3 import EMT as Calculator
@@ -142,6 +182,10 @@ def get_calculator(name):
         from ase.calculators.vasp import Vasp2 as Calculator
     elif name == 'ace':
         from ase.calculators.acemolecule import ACE as Calculator
+    elif name == 'Psi4':
+        from ase.calculators.psi4 import Psi4 as Calculator
+    elif name in external_calculators:
+        Calculator = external_calculators[name]
     else:
         classname = special.get(name, name.title())
         module = __import__('ase.calculators.' + name, {}, None, [classname])
@@ -151,23 +195,25 @@ def get_calculator(name):
 
 def equal(a, b, tol=None):
     """ndarray-enabled comparison function."""
-    if isinstance(a, np.ndarray) or hasattr(a, '__array__'):
-        b = np.array(b)
-        if a.shape != b.shape:
-            return False
-        if tol is None:
-            return (a == b).all()
-        else:
-            return np.allclose(a, b, rtol=tol, atol=tol)
-    if isinstance(b, np.ndarray) or hasattr(b, '__array__'):
-        return equal(b, a, tol)
-    if isinstance(a, dict) and isinstance(b, dict):
-        if a.keys() != b.keys():
-            return False
-        return all(equal(a[key], b[key], tol) for key in a.keys())
+    # XXX Known bugs:
+    #  * Comparing cell objects (pbc not part of array representation)
+    #  * Infinite recursion for cyclic dicts
+    #  * Can of worms is open
     if tol is None:
-        return a == b
-    return abs(a - b) < tol * abs(b) + tol
+        return np.array_equal(a, b)
+
+    shape = np.shape(a)
+    if shape != np.shape(b):
+        return False
+
+    if not shape:
+        if isinstance(a, dict) and isinstance(b, dict):
+            if a.keys() != b.keys():
+                return False
+            return all(equal(a[key], b[key], tol) for key in a.keys())
+        return abs(a - b) < tol * abs(b) + tol
+
+    return np.allclose(a, b, rtol=tol, atol=tol)
 
 
 def kptdensity2monkhorstpack(atoms, kptdensity=3.5, even=True):
@@ -225,38 +271,79 @@ def kpts2sizeandoffsets(size=None, density=None, gamma=None, even=None,
 
     """
 
+    if size is not None and density is not None:
+        raise ValueError('Cannot specify k-point mesh size and '
+                         'density simultaneously')
+    elif density is not None and atoms is None:
+        raise ValueError('Cannot set k-points from "density" unless '
+                         'Atoms are provided (need BZ dimensions).')
+
     if size is None:
         if density is None:
             size = [1, 1, 1]
         else:
-            size = kptdensity2monkhorstpack(atoms, density, even)
+            size = kptdensity2monkhorstpack(atoms, density, None)
+
+    # Not using the rounding from kptdensity2monkhorstpack as it doesn't do
+    # rounding to odd numbers
+    if even is not None:
+        size = np.array(size)
+        remainder = size % 2
+        if even:
+            size += remainder
+        else:  # Round up to odd numbers
+            size += (1 - remainder)
 
     offsets = [0, 0, 0]
+    if atoms is None:
+        pbc = [True, True, True]
+    else:
+        pbc = atoms.pbc
 
     if gamma is not None:
         for i, s in enumerate(size):
-            if atoms.pbc[i] and s % 2 != bool(gamma):
+            if pbc[i] and s % 2 != bool(gamma):
                 offsets[i] = 0.5 / s
 
     return size, offsets
 
 
-def kpts2ndarray(kpts, atoms=None):
-    """Convert kpts keyword to 2-d ndarray of scaled k-points."""
+@jsonable('kpoints')
+class KPoints:
+    def __init__(self, kpts=None):
+        if kpts is None:
+            kpts = np.zeros((1, 3))
+        self.kpts = kpts
 
+    def todict(self):
+        return vars(self)
+
+
+def kpts2kpts(kpts, atoms=None):
     if kpts is None:
-        return np.zeros((1, 3))
+        return KPoints()
+
+    if hasattr(kpts, 'kpts'):
+        return kpts
 
     if isinstance(kpts, dict):
+        if 'kpts' in kpts:
+            return KPoints(kpts['kpts'])
         if 'path' in kpts:
-            return bandpath(cell=atoms.cell, **kpts)[0]
+            cell = Cell.ascell(atoms.cell)
+            return cell.bandpath(pbc=atoms.pbc, **kpts)
         size, offsets = kpts2sizeandoffsets(atoms=atoms, **kpts)
-        return monkhorst_pack(size) + offsets
+        return KPoints(monkhorst_pack(size) + offsets)
 
     if isinstance(kpts[0], int):
-        return monkhorst_pack(kpts)
+        return KPoints(monkhorst_pack(kpts))
 
-    return np.array(kpts)
+    return KPoints(np.array(kpts))
+
+
+def kpts2ndarray(kpts, atoms=None):
+    """Convert kpts keyword to 2-d ndarray of scaled k-points."""
+    return kpts2kpts(kpts, atoms=atoms).kpts
 
 
 class EigenvalOccupationMixin:
@@ -304,9 +391,28 @@ class Parameters(dict):
     @classmethod
     def read(cls, filename):
         """Read parameters from file."""
-        file = open(os.path.expanduser(filename))
-        parameters = cls(eval(file.read()))
-        file.close()
+        # We use ast to evaluate literals, avoiding eval()
+        # for security reasons.
+        import ast
+        with open(filename) as fd:
+            txt = fd.read().strip()
+        assert txt.startswith('dict(')
+        assert txt.endswith(')')
+        txt = txt[5:-1]
+
+        # The tostring() representation "dict(...)" is not actually
+        # a literal, so we manually parse that along with the other
+        # formatting that we did manually:
+        dct = {}
+        for line in txt.splitlines():
+            key, val = line.split('=', 1)
+            key = key.strip()
+            val = val.strip()
+            if val[-1] == ',':
+                val = val[:-1]
+            dct[key] = ast.literal_eval(val)
+
+        parameters = cls(dct)
         return parameters
 
     def tostring(self):
@@ -333,14 +439,22 @@ class Calculator(object):
     'magmom' and 'magmoms'.
     """
 
-    implemented_properties = []
+    implemented_properties: List[str] = []
     'Properties calculator can handle (energy, forces, ...)'
 
-    default_parameters = {}
+    default_parameters: Dict[str, Any] = {}
     'Default parameters'
 
+    ignored_changes: Set[str] = set()
+    'Properties of Atoms which we ignore for the purposes of cache '
+    'invalidation with check_state().'
+
+    discard_results_on_any_change = False
+    'Whether we purge the results following any change in the set() method.  '
+    'Most (file I/O) calculators will probably want this.'
+
     def __init__(self, restart=None, ignore_bad_restart_file=False, label=None,
-                 atoms=None, **kwargs):
+                 atoms=None, directory='.', **kwargs):
         """Basic calculator implementation.
 
         restart: str
@@ -349,8 +463,13 @@ class Calculator(object):
         ignore_bad_restart_file: bool
             Ignore broken or missing restart file.  By default, it is an
             error if the restart file is missing or broken.
+        directory: str or PurePath
+            Working directory in which to read and write files and
+            perform calculations.
         label: str
-            Name used for all files.  May contain a directory.
+            Name used for all files.  Not supported by all calculators.
+            May contain a directory, but please use the directory parameter
+            for that instead.
         atoms: Atoms object
             Optional Atoms object to which the calculator will be
             attached.  When restarting, atoms will get its positions and
@@ -359,6 +478,7 @@ class Calculator(object):
         self.atoms = None  # copy of atoms object from last calculation
         self.results = {}  # calculated properties (energy, forces, ...)
         self.parameters = None  # calculational parameters
+        self._directory = None  # Initialize
 
         if restart is not None:
             try:
@@ -369,11 +489,15 @@ class Calculator(object):
                 else:
                     raise
 
-        self.label = None
-        self.directory = None
+        self.directory = directory
         self.prefix = None
-
-        self.set_label(label)
+        if label is not None:
+            if self.directory != '.' and '/' in label:
+                raise ValueError('Directory redundantly specified though '
+                                 'directory="{}" and label="{}".  '
+                                 'Please omit "/" in label.'
+                                 .format(self.directory, label))
+            self.label = '/'.join((self.directory, label))
 
         if self.parameters is None:
             # Use default parameters if they were not read from file:
@@ -394,6 +518,48 @@ class Calculator(object):
         if not hasattr(self, 'name'):
             self.name = self.__class__.__name__.lower()
 
+    @property
+    def directory(self) -> str:
+        return self._directory
+
+    @directory.setter
+    def directory(self, directory: Union[str, pathlib.PurePath]):
+        self._directory = str(pathlib.Path(directory))  # Normalize path.
+
+    @property
+    def label(self):
+        if self.directory == '.':
+            return self.prefix
+
+        # Generally, label ~ directory/prefix
+        #
+        # We use '/' rather than os.pathsep because
+        #   1) directory/prefix does not represent any actual path
+        #   2) We want the same string to work the same on all platforms
+        if self.prefix is None:
+            return self.directory + '/'
+
+        return '{}/{}'.format(self.directory, self.prefix)
+
+    @label.setter
+    def label(self, label):
+        if label is None:
+            self.directory = '.'
+            self.prefix = None
+            return
+
+        tokens = label.rsplit('/', 1)
+        if len(tokens) == 2:
+            directory, prefix = tokens
+        else:
+            assert len(tokens) == 1
+            directory = '.'
+            prefix = tokens[0]
+        if prefix == '':
+            prefix = None
+        self.directory = directory
+        self.prefix = prefix
+
     def set_label(self, label):
         """Set label and convert label to directory and prefix.
 
@@ -401,20 +567,9 @@ class Calculator(object):
 
         * label='abc': (directory='.', prefix='abc')
         * label='dir1/abc': (directory='dir1', prefix='abc')
-
-        Calculators that must write results to files with fixed names
-        can overwrite this method so that the directory is set to all
-        of label."""
-
+        * label=None: (directory='.', prefix=None)
+        """
         self.label = label
-
-        if label is None:
-            self.directory = None
-            self.prefix = None
-        else:
-            self.directory, self.prefix = os.path.split(label)
-            if self.directory == '':
-                self.directory = os.curdir
 
     def get_default_parameters(self):
         return Parameters(copy.deepcopy(self.default_parameters))
@@ -498,11 +653,14 @@ class Calculator(object):
                 changed_parameters[key] = value
                 self.parameters[key] = value
 
+        if self.discard_results_on_any_change and changed_parameters:
+            self.reset()
         return changed_parameters
 
     def check_state(self, atoms, tol=1e-15):
-        """Check for system changes since last calculation."""
-        return compare_atoms(self.atoms, atoms, tol)
+        """Check for any system changes since last calculation."""
+        return compare_atoms(self.atoms, atoms, tol=tol,
+                             excluded_properties=set(self.ignored_changes))
 
     def get_potential_energy(self, atoms=None, force_consistent=False):
         energy = self.get_property('energy', atoms)
@@ -517,6 +675,9 @@ class Calculator(object):
             return self.results['free_energy']
         else:
             return energy
+
+    def get_potential_energies(self, atoms=None):
+        return self.get_property('energies', atoms)
 
     def get_forces(self, atoms=None):
         return self.get_property('forces', atoms)
@@ -611,11 +772,14 @@ class Calculator(object):
                             'magmoms': np.zeros(len(atoms))}
 
         The subclass implementation should first call this
-        implementation to set the atoms attribute.
+        implementation to set the atoms attribute and create any missing
+        directories.
         """
 
         if atoms is not None:
             self.atoms = atoms.copy()
+        if not os.path.isdir(self._directory):
+            os.makedirs(self._directory)
 
     def calculate_numerical_forces(self, atoms, d=0.001):
         """Calculate numerical forces using finite difference.
@@ -681,11 +845,30 @@ class Calculator(object):
         # from the selfconsistent calculation.
         return get_band_structure(calc=self)
 
+    def calculate_properties(self, atoms, properties):
+        """This method is experimental; currently for internal use."""
+        for name in properties:
+            if name not in all_outputs:
+                raise ValueError(f'No such property: {name}')
+
+        # We ignore system changes for now.
+        self.calculate(atoms, properties, system_changes=all_changes)
+
+        props = self.export_properties()
+
+        for name in properties:
+            if name not in props:
+                raise PropertyNotPresent(name)
+        return props
+
+    def export_properties(self):
+        return Properties(self.results)
+
 
 class FileIOCalculator(Calculator):
     """Base class for calculators that write/read input/output files."""
 
-    command = None  # str
+    command: Optional[str] = None
     'Command used to start calculation'
 
     def __init__(self, restart=None, ignore_bad_restart_file=False,
@@ -714,13 +897,29 @@ class FileIOCalculator(Calculator):
                 'Please set ${} environment variable '
                 .format('ASE_' + self.name.upper() + '_COMMAND') +
                 'or supply the command keyword')
-        command = self.command.replace('PREFIX', self.prefix)
-        errorcode = subprocess.call(command, shell=True, cwd=self.directory)
+        command = self.command
+        if 'PREFIX' in command:
+            command = command.replace('PREFIX', self.prefix)
+
+        try:
+            proc = subprocess.Popen(command, shell=True, cwd=self.directory)
+        except OSError as err:
+            # Actually this may never happen with shell=True, since
+            # probably the shell launches successfully.  But we soon want
+            # to allow calling the subprocess directly, and then this
+            # distinction (failed to launch vs failed to run) is useful.
+            msg = 'Failed to execute "{}"'.format(command)
+            raise EnvironmentError(msg) from err
+
+        errorcode = proc.wait()
 
         if errorcode:
-            raise CalculationFailed('{} in {} returned an error: {}'
-                                    .format(self.name, self.directory,
-                                            errorcode))
+            path = os.path.abspath(self.directory)
+            msg = ('Calculator "{}" failed with command "{}" failed in '
+                   '{} with error code {}'.format(self.name, command,
+                                                  path, errorcode))
+            raise CalculationFailed(msg)
+
         self.read_results()
 
     def write_input(self, atoms, properties=None, system_changes=None):
@@ -729,7 +928,8 @@ class FileIOCalculator(Calculator):
         Call this method first in subclasses so that directories are
         created automatically."""
 
-        if self.directory != os.curdir and not os.path.isdir(self.directory):
+        absdir = os.path.abspath(self.directory)
+        if absdir != os.curdir and not os.path.isdir(self.directory):
             os.makedirs(self.directory)
 
     def read_results(self):

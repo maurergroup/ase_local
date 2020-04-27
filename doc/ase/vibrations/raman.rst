@@ -4,13 +4,17 @@ Resonant and non-resonant Raman spectra
 Note: :ref:`Siesta Raman` are possible also.
 
 Raman spectra can be calculated in various approximations [1]_.
-While the examples below are using GPAW_ explicitely,
+While the examples below are using GPAW_ explicitly,
 the modules are intended to work with other calculators also.
 The strategy is to calculate vibrational properties first and
 obtain the spectra from these later.
 
+---------------------------------
 1. Finite difference calculations
 ---------------------------------
+
+1a. Forces
+----------
 
 It is recommended to do a vibrational analysis first by using
 the :class:`~ase.vibrations.Vibrations` or  :class:`~ase.vibrations.Infrared`
@@ -18,7 +22,15 @@ modules. In the example of molecular hydrogen this is
 
 .. literalinclude:: H2_ir.py
 
+This produces a calculation with rather accurate forces in order
+to get the Hessian and thus the vibrational frequencies as well
+as Eigenstates correctly.
+
+1b. Excitations
+---------------
+
 In the next step we perform a finite difference optical calculation
+with less accuracy,
 where the optical spectra are evaluated using TDDFT
 
 .. literalinclude:: H2_optical.py
@@ -32,8 +44,8 @@ calculated in the form
   o_{ij} = \int d\vec{r} \; \phi_i^{{\rm disp},*}(\vec{r})
   \phi_j^{{\rm eq}}(\vec{r})
    
-where :math:`\phi_j^{{\rm eq}}` is an orbital at equilibrium position
-and :math:`\phi_i^{\rm disp}` is an orbital at displaced position.
+where `\phi_j^{{\rm eq}}` is an orbital at equilibrium position
+and `\phi_i^{\rm disp}` is an orbital at displaced position.
 This is implemented in ``Overlap`` in GPAW
 (approximated by pseudo-wavefunction overlaps) and can be triggered
 in ``ResonantRaman`` by::
@@ -89,10 +101,10 @@ Albrecht
 ````````
 
 ``ResonantRaman`` calls the displaced excited state objects' function
-``overlap`` with the matrix :math:`o_{ij}` and expects the function to
+``overlap`` with the matrix `o_{ij}` and expects the function to
 return the corresponding overlap matrix for the transition dipoles.
-In case of Kohn-Sham transitions with :math:`i,j` for occupied
-and :math:`\alpha,\beta` for empty orbitals, this is
+In case of Kohn-Sham transitions with `i,j` for occupied
+and `\alpha,\beta` for empty orbitals, this is
 
 .. math::
 
@@ -104,7 +116,7 @@ Example::
 
   al = Albrecht()
 
-.. _GPAW: http://wiki.fysik.dtu.dk/gpaw
+.. _GPAW: https://wiki.fysik.dtu.dk/gpaw/
   
 .. [1] "Ab-initio wave-length dependent Raman spectra: Placzek approximation and beyond" Michael Walter, Michael Moseler `arXiv:1806.03840 <https://arxiv.org/abs/1806.03840>`_ [physics.chem-ph]
 

@@ -12,9 +12,31 @@ from distutils.command.build_py import build_py as _build_py
 from glob import glob
 from os.path import join
 
+python_requires = (3, 6)
 
-if sys.version_info < (3, 4, 0, 'final', 0):
-    raise SystemExit('Python 3.4 or later is required!')
+
+if sys.version_info < python_requires:
+    raise SystemExit('Python 3.6 or later is required!')
+
+
+install_requires = [
+    'numpy>=1.11.3',
+    'scipy>=0.18.1',
+    'matplotlib>=2.0.0',
+]
+
+
+extras_require = {
+    'docs': [
+        'sphinx',
+        'sphinx_rtd_theme',
+        'pillow',
+    ],
+    'test': [
+        'pytest>=3.6.1',
+        'pytest-xdist>=1.22.1',
+    ]
+}
 
 
 with open('README.rst') as fd:
@@ -28,7 +50,9 @@ with open('ase/__init__.py') as fd:
 package_data = {'ase': ['spacegroup/spacegroup.dat',
                         'collections/*.json',
                         'db/templates/*',
-                        'db/static/*']}
+                        'db/static/*'],
+                'ase.test': ['pytest.ini',
+                             'data/*']}
 
 
 class build_py(_build_py):
@@ -70,8 +94,8 @@ setup(name='ase',
       license='LGPLv2.1+',
       platforms=['unix'],
       packages=find_packages(),
-      install_requires=['numpy', 'scipy', 'matplotlib', 'flask'],
-      extras_require={'docs': ['sphinx', 'sphinx_rtd_theme', 'pillow']},
+      install_requires=install_requires,
+      extras_require=extras_require,
       package_data=package_data,
       entry_points={'console_scripts': ['ase=ase.cli.main:main',
                                         'ase-db=ase.cli.main:old',
@@ -87,7 +111,6 @@ setup(name='ase',
           'GNU Lesser General Public License v2 or later (LGPLv2+)',
           'Operating System :: OS Independent',
           'Programming Language :: Python :: 3',
-          'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
