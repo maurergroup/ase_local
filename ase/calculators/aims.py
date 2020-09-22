@@ -490,7 +490,7 @@ class Aims(FileIOCalculator):
             scaled,
             geo_constrain,
             velocities=velocities,
-            ghosts=ghosts
+            ghosts=ghosts,
             friction_atoms=friction_atoms
         )
         self.write_control(atoms, os.path.join(self.directory, 'control.in'))
