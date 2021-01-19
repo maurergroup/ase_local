@@ -31,7 +31,7 @@ class h2pes_calc(FileIOCalculator,Calculator):
 
         submatrix = np.zeros(len(h2indices)*3, dtype=np.int)
         for i in range(len(h2indices)*3):
-            submatrix[i] = h2indices[i/3]*3+i%3
+            submatrix[i] = h2indices[int(i/3)]*3+i%3
         self.submatrix = submatrix
 
     def get_potential_energy(self,atoms):
