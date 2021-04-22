@@ -556,6 +556,8 @@ class Aims(FileIOCalculator):
                     output.write('%-35s%s\n' % (key, output_type))
             elif key == 'vdw_correction_hirshfeld' and value:
                 output.write('%-35s\n' % key)
+            elif key == 'many_body_dispersion' and value:
+                output.write('%-35s\n' % key)
             elif key in bool_keys:
                 output.write('%-35s.%s.\n' % (key, repr(bool(value)).lower()))
             elif isinstance(value, (tuple, list)):
