@@ -327,14 +327,6 @@ def write_aims(
         if atom.magmom:
             fd.write("    initial_moment %16.6f\n" % atom.magmom)
 
-        # Write velocities if this is wanted
-        if velocities and atoms.get_velocities() is not None:
-            fd.write(
-                "    velocity {:.16f} {:.16f} {:.16f}\n".format(
-                    *atoms.get_velocities()[i] / v_unit
-                )
-            )
-
     if geo_constrain:
         for line in get_sym_block(atoms):
             fd.write(line)
