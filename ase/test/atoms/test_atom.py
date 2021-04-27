@@ -1,5 +1,6 @@
 from ase import Atom, Atoms
 
+
 def test_atom():
     m = Atoms('H2')
     a = m[0]
@@ -30,3 +31,10 @@ def test_atom():
     m += a
     del m[:1]
     print(m)
+
+
+def test_repr():
+    txt = repr(Atom('Si', charge=7))
+    print(txt)
+    assert 'Si' in txt
+    assert 'charge' in txt

@@ -1,9 +1,14 @@
 import io
 import numpy as np
 import warnings
+import pytest
 
-from ase.io import read
-from ase.io import write
+from ase import Atoms
+from ase.build import molecule
+from ase.io import read, write
+from ase.io.cif import CIFLoop, parse_loop, NoStructureData, parse_cif
+from ase.calculators.calculator import compare_atoms
+
 
 def check_fractional_occupancies(atoms):
     """ Checks fractional occupancy entries in atoms.info dict """
@@ -22,7 +27,8 @@ def check_fractional_occupancies(atoms):
         if a.symbol == 'Cl':
             assert occupancies[kinds[a.index]]['Cl'] == 0.3
 
-content = u"""
+
+content = """
 data_1
 
 
@@ -289,12 +295,12 @@ def test_cif():
     check_fractional_occupancies(atoms)
 
     # check repeating atoms
-    atoms = atoms.repeat([2,1,1])
+    atoms = atoms.repeat([2, 1, 1])
     assert len(atoms.arrays['spacegroup_kinds']) == len(atoms.arrays['numbers'])
 
 
 # ICSD-like file from issue #293
-content2 = u"""
+content2 = """
 data_global
 _cell_length_a 9.378(5)
 _cell_length_b 7.488(5)
@@ -341,5 +347,208 @@ Se5 Se2- 2 a 0.1147(4) 0.5633(4) 0.3288(6) 0.1078(6) 1. 0
 Se6 Se2- 2 a 0.0050(4) 0.4480(6) 0.9025(6) 0.9102(6) 1. 0
 """
 
-cif_file = io.StringIO(content2)
-atoms = read(cif_file, format='cif')
+
+def test_cif_icsd():
+    cif_file = io.StringIO(content2)
+    atoms = read(cif_file, format='cif')
+    # test something random so atoms is not unused
+    assert 'occupancy' in atoms.info
+
+
+@pytest.fixture
+def cif_atoms():
+    cif_file = io.StringIO(content)
+    return read(cif_file, format='cif')
+
+
+def test_cif_loop_keys(cif_atoms):
+    data = {}
+    # test case has 20 entries
+    data['someKey'] = [[str(i) + "test" for i in range(20)]]
+    # test case has 20 entries
+    data['someIntKey'] = [[str(i) + "123" for i in range(20)]]
+    cif_atoms.write('testfile.cif', loop_keys=data)
+
+    atoms1 = read('testfile.cif', store_tags=True)
+    # keys are read lowercase only
+    r_data = {'someKey': atoms1.info['_somekey'],
+              'someIntKey': atoms1.info['_someintkey']}
+    assert r_data['someKey'] == data['someKey'][0]
+    # data reading auto converts strins
+    assert r_data['someIntKey'] == [int(x) for x in data['someIntKey'][0]]
+
+
+# test if automatic numbers written after elements are correct
+def test_cif_writer_label_numbers(cif_atoms):
+    cif_atoms.write('testfile.cif')
+    atoms1 = read('testfile.cif', store_tags=True)
+    labels = atoms1.info['_atom_site_label']
+    # cannot use atoms.symbols as K is missing there
+    elements = atoms1.info['_atom_site_type_symbol']
+    build_labels = [
+        "{:}{:}".format(
+            x, i) for x in set(elements) for i in range(
+            1, elements.count(x) + 1)]
+    assert build_labels.sort() == labels.sort()
+
+
+def test_cif_labels(cif_atoms):
+    data = [["label" + str(i) for i in range(20)]]  # test case has 20 entries
+    cif_atoms.write('testfile.cif', labels=data)
+
+    atoms1 = read('testfile.cif', store_tags=True)
+    print(atoms1.info)
+    assert data[0] == atoms1.info['_atom_site_label']
+
+
+def test_cifloop():
+    dct = {'_eggs': range(4),
+           '_potatoes': [1.3, 7.1, -1, 0]}
+
+    loop = CIFLoop()
+    loop.add('_eggs', dct['_eggs'], '{:<2d}')
+    loop.add('_potatoes', dct['_potatoes'], '{:.4f}')
+
+    string = loop.tostring() + '\n\n'
+    lines = string.splitlines()[::-1]
+    assert lines.pop() == 'loop_'
+
+    newdct = parse_loop(lines)
+    print(newdct)
+    assert set(dct) == set(newdct)
+    for name in dct:
+        assert dct[name] == pytest.approx(newdct[name])
+
+
+@pytest.mark.parametrize('data', [b'', b'data_dummy'])
+def test_empty_or_atomless(data):
+    ciffile = io.BytesIO(data)
+
+    images = read(ciffile, index=':', format='cif')
+    assert len(images) == 0
+
+
+def test_empty_or_atomless_cifblock():
+    ciffile = io.BytesIO(b'data_dummy')
+    blocks = list(parse_cif(ciffile))
+
+    assert len(blocks) == 1
+    assert not blocks[0].has_structure()
+    with pytest.raises(NoStructureData):
+        blocks[0].get_atoms()
+
+
+def test_symbols_questionmark():
+    ciffile = io.BytesIO(
+        b'data_dummy\n'
+        b'loop_\n'
+        b'_atom_site_label\n'
+        b'?\n')
+    blocks = list(parse_cif(ciffile))
+    assert not blocks[0].has_structure()
+    with pytest.raises(NoStructureData, match='undetermined'):
+        blocks[0].get_atoms()
+
+
+def test_bad_occupancies(cif_atoms):
+    assert 'Au' not in cif_atoms.symbols
+    cif_atoms.symbols[0] = 'Au'
+    with pytest.warns(UserWarning, match='no occupancy info'):
+        write('tmp.cif', cif_atoms)
+
+
+@pytest.mark.parametrize(
+    'setting_name, ref_setting',
+    [
+        ('hexagonal', 1),
+        ('trigonal', 2),
+        ('rhombohedral', 2)
+    ]
+)
+def test_spacegroup_named_setting(setting_name, ref_setting):
+    """The rhombohedral crystal system signifies setting=2"""
+    ciffile = io.BytesIO("""\
+data_test
+_space_group_crystal_system {}
+_symmetry_space_group_name_H-M         'R-3m'
+""".format(setting_name).encode('ascii'))
+
+    blocks = list(parse_cif(ciffile))
+    assert len(blocks) == 1
+    spg = blocks[0].get_spacegroup(False)
+    assert int(spg) == 166
+    assert spg.setting == ref_setting
+
+
+@pytest.fixture
+def atoms():
+    return Atoms('CO', cell=[2., 3., 4., 50., 60., 70.], pbc=True,
+                 scaled_positions=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+
+
+def roundtrip(atoms):
+    from ase.io.bytes import to_bytes, parse_atoms
+    buf = to_bytes(atoms, format='cif')
+    return parse_atoms(buf, format='cif')
+
+
+def test_cif_roundtrip_periodic(atoms):
+    # Reading and writing the cell loses the rotation information,
+    # but preserves cellpar and scaled positions.
+    atoms1 = roundtrip(atoms)
+
+    assert str(atoms1.symbols) == 'CO'
+    assert all(atoms1.pbc)
+    assert atoms.cell.cellpar() == pytest.approx(
+        atoms1.cell.cellpar(), abs=1e-5)
+    assert atoms.get_scaled_positions() == pytest.approx(
+        atoms1.get_scaled_positions(), abs=1e-5)
+
+
+def test_cif_roundtrip_nonperiodic():
+    atoms = molecule('H2O')
+    atoms1 = roundtrip(atoms)
+    assert not compare_atoms(atoms, atoms1, tol=1e-5)
+
+
+def test_cif_missingvector(atoms):
+    # We don't know any way to represent only 2 cell vectors in CIF.
+    # So we discard them and warn the user.
+    atoms.cell[0] = 0.0
+    atoms.pbc[0] = False
+
+    assert atoms.cell.rank == 2
+
+    with pytest.raises(ValueError, match='CIF format can only'):
+        roundtrip(atoms)
+
+
+def test_cif_roundtrip_mixed():
+    atoms = Atoms('Au', cell=[1., 2., 3.], pbc=[1, 1, 0])
+    atoms1 = roundtrip(atoms)
+
+    # We cannot preserve PBC info for this case:
+    assert all(atoms1.pbc)
+    assert compare_atoms(atoms, atoms1, tol=1e-5) == ['pbc']
+    assert atoms.get_scaled_positions() == pytest.approx(
+        atoms1.get_scaled_positions(), abs=1e-5)
+    #assert pytest.approx(atoms.positions) == atoms1.positions
+    #assert atoms1.cell.rank == 0
+
+
+cif_with_whitespace_after_loop = b"""\
+data_image0
+loop_
+ _hello
+ banana
+ 
+_potato 42
+"""
+
+
+def test_loop_with_space():
+    # Regression test for https://gitlab.com/ase/ase/-/issues/859 .
+    buf = io.BytesIO(cif_with_whitespace_after_loop)
+    blocks = list(parse_cif(buf))
+    assert len(blocks) == 1
+    assert blocks[0]['_potato'] == 42

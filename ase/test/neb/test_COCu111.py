@@ -1,15 +1,14 @@
 from math import sqrt
-import pytest
+
 from ase import Atoms, Atom
 from ase.calculators.emt import EMT
 from ase.constraints import FixAtoms
-from ase.optimize import BFGS, QuasiNewton
-from ase.neb import NEB
 from ase.io import Trajectory
+from ase.neb import NEB
+from ase.optimize import BFGS, QuasiNewton
 
 
-@pytest.mark.slow
-def test_COCu111():
+def test_COCu111(testdir):
     # Distance between Cu atoms on a (111) surface:
     a = 3.6
     d = a / sqrt(2)
@@ -18,7 +17,7 @@ def test_COCu111():
                          (d / 2, d * sqrt(3) / 2, 0),
                          (d / 2, d * sqrt(3) / 6, -a / sqrt(3))],
                    pbc=True)
-    slab = fcc111 * (2, 2, 4)
+    slab = fcc111 * (2, 2, 2)
     slab.set_cell([2 * d, d * sqrt(3), 1])
     slab.set_pbc((1, 1, 0))
     slab.calc = EMT()
@@ -42,7 +41,7 @@ def test_COCu111():
 
     # Make band:
     images = [slab]
-    for i in range(6):
+    for i in range(4):
         image = slab.copy()
         # Set constraints and calculator:
         image.set_constraint(constraint)
@@ -50,6 +49,7 @@ def test_COCu111():
         images.append(image)
 
     # Displace last image:
+    image = images[-1]
     image[-2].position = image[-1].position
     image[-1].x = d
     image[-1].y = d / sqrt(3)
@@ -64,16 +64,15 @@ def test_COCu111():
     for image in images:
         print(image.positions[-1], image.get_potential_energy())
 
-    dyn = BFGS(neb, maxstep=0.04, trajectory='mep.traj')
-    dyn.run(fmax=0.05)
+    with BFGS(neb, maxstep=0.04, trajectory='mep.traj') as dyn:
+        dyn.run(fmax=0.1)
 
     for image in images:
         print(image.positions[-1], image.get_potential_energy())
 
-
     # Trying to read description of optimization from trajectory
-    traj = Trajectory('mep.traj')
-    assert traj.description['optimizer'] == 'BFGS'
-    for key, value in traj.description.items():
-        print(key, value)
-    print(traj.ase_version)
+    with Trajectory('mep.traj') as traj:
+        assert traj.description['optimizer'] == 'BFGS'
+        for key, value in traj.description.items():
+            print(key, value)
+        print(traj.ase_version)

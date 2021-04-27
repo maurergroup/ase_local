@@ -4,10 +4,10 @@ import pytest
 from ase.build import bulk
 from ase.calculators.test import FreeElectrons
 from ase.dft.kpoints import special_paths
-from ase.dft.band_structure import BandStructure
+from ase.spectrum.band_structure import BandStructure
 
 
-def test_bandstructure(plt):
+def test_bandstructure(testdir, plt):
     atoms = bulk('Cu')
     path = special_paths['fcc']
     atoms.calc = FreeElectrons(nvalence=1,
@@ -31,8 +31,10 @@ def bs():
     path = rhl.bandpath()
     return path.free_electron_band_structure()
 
+
 def test_print_bs(bs):
     print(bs)
+
 
 def test_subtract_ref(bs):
     avg = np.mean(bs.energies)

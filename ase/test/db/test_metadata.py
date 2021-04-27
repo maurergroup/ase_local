@@ -16,7 +16,7 @@ plot = {'a': [0, 1, 2],
 
 
 @pytest.mark.parametrize('name', ['md.json', 'md.db'])
-def test_metadata(name):
+def test_metadata(name, testdir):
     print(name)
     db = connect(name)
     db.write(Atoms('H'), answer=42, kind='atom', foo=True)
@@ -24,10 +24,6 @@ def test_metadata(name):
     db.metadata = {'test': 'ok'}
     db.metadata = {
         'default_columns': ['formula', 'answer', 'kind'],
-        'special_keys': [
-            ('SELECT', 'kind'),
-            ('BOOL', 'foo'),
-            ('RANGE', 'ans', 'Answer', [('ANS', 'answer')])],
         'key_descriptions': {
             'kind': ('Type', 'Type of system', ''),
             'answer': ('Answer', 'Answer to question', 'eV')}}

@@ -10,12 +10,12 @@ import ase.units as units
 
 
 @pytest.mark.slow
-def test_CO2linear_Au111_langevin():
+def test_CO2linear_Au111_langevin(testdir):
     """Test Langevin with constraints for rigid linear
     triatomic molecules"""
 
     rng = np.random.RandomState(0)
-    eref = 3.1356
+    eref = 3.133526
 
     zpos = cos(134.3 / 2.0 * pi / 180.0) * 1.197
     xpos = sin(134.3 / 2.0 * pi / 180.0) * 1.19
@@ -38,7 +38,7 @@ def test_CO2linear_Au111_langevin():
 
     fr = 0.1
     dyn = Langevin(slab, 2.0 * units.fs,
-                   300 * units.kB, fr,
+                   temperature_K=300, friction=fr,
                    trajectory='langevin_%.1f.traj' % fr,
                    logfile='langevin_%.1f.log' % fr,
                    loginterval=20, rng=rng)

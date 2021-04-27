@@ -1,7 +1,7 @@
 import pytest
 from ase.calculators.test import FreeElectrons
 from ase.lattice import all_variants
-from ase.dft.band_structure import calculate_band_structure
+from ase.spectrum.band_structure import calculate_band_structure
 from ase import Atoms
 
 
@@ -9,7 +9,7 @@ from ase import Atoms
                          [pytest.param(i, lat, id=lat.variant)
                           for i, lat in enumerate(all_variants())
                           if lat.ndim == 3])
-def test_lattice_bandstructure(i, lat, figure):
+def test_lattice_bandstructure(testdir, i, lat, figure):
     xid = '{:02d}.{}'.format(i, lat.variant)
     path = lat.bandpath(density=10)
     path.write('path.{}.json'.format(xid))

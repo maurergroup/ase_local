@@ -11,7 +11,7 @@ algorithms in which ASE moves the atoms while the external code
 calculates energies, forces, and stress.  Note that ASE does not
 require i-PI, but simply uses the same protocol.
 
-The reference article for i-PI is `Ceriotti, More, Manolopoulos, Comp. Phys. Comm. 185, 1019-1026 (2014) <https://doi.org/10.1016/j.cpc.2013.10.027>`_.
+The reference article for i-PI is :doi:`Ceriotti, More, Manolopoulos, Comp. Phys. Comm. 185, 1019-1026 (2014) <10.1016/j.cpc.2013.10.027>`.
 
 
 Introduction
@@ -36,18 +36,19 @@ Below is a list of codes that can run as clients, and whether ASE
 provides a calculator that supports doing so.
 
 ================ =========================================
-Program name     Supported by ASE calculator
+Client program   Supported by ASE calculator
 ================ =========================================
-Quantum Espresso Yes
-FHI-aims         Yes
-Siesta           Yes
-DFTB+            Yes
-NWChem           Yes
-Yaff             No; there is no ASE calculator for Yaff
-cp2k             No; ASE uses cp2k shell instead
-Lammps           No; ASE uses lammpsrun/lammpslib instead
+Abinit           Yes
 ASE              Yes - ASE provides a client as well
+cp2k             No; ASE uses cp2k shell instead
+DFTB+            Yes
+FHI-aims         Yes
 GPAW             Yes, using the ASE client
+Lammps           No; ASE uses lammpsrun/lammpslib instead
+NWChem           Yes
+Quantum Espresso Yes
+Siesta           Yes
+Yaff             No; there is no ASE calculator for Yaff
 ================ =========================================
 
 The codes that are "not supported" by ASE can still be used as
@@ -94,6 +95,10 @@ Example using DFTB+
 Example using NWChem
 
 .. literalinclude:: example_nwchem.py
+
+Example using Abinit
+
+.. literalinclude:: example_abinit.py
 
 For codes other than these, see the next section.
 

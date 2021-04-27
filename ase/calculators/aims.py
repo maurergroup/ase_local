@@ -9,6 +9,7 @@ import os
 import warnings
 import time
 from typing import Optional
+import re
 
 import numpy as np
 
@@ -17,6 +18,11 @@ from ase.io.aims import write_aims, read_aims
 from ase.data import atomic_numbers
 from ase.calculators.calculator import FileIOCalculator, Parameters, kpts2mp, \
     ReadError, PropertyNotImplementedError
+
+
+def get_aims_version(string):
+    match = re.search(r'\s*FHI-aims version\s*:\s*(\S+)', string, re.M)
+    return match.group(1)
 
 
 float_keys = [
@@ -625,7 +631,7 @@ class Aims(FileIOCalculator):
         if ('calculate_friction' in self.parameters):
             self.read_friction_tensor()
 
-    def write_species(self, atoms, filename='control.in'):
+    def write_species(self, atoms, filename):
         self.ctrlname = filename
         species_path = self.parameters.get('species_dir')
         if species_path is None:
@@ -1006,8 +1012,8 @@ class Aims(FileIOCalculator):
         for n, line in enumerate(lines):
             if line.rfind('K-points in task') > -1:
                 kptsstart = n  # last occurrence of (
-        assert not kpts is None
-        assert not kptsstart is None
+        assert kpts is not None
+        assert kptsstart is not None
         text = lines[kptsstart + 1:]
         values = []
         for line in text[:kpts]:
@@ -1032,7 +1038,7 @@ class Aims(FileIOCalculator):
             if line.rfind('| Number of k-points') > -1:
                 kpts = int(line.split(':')[-1].strip())
                 break
-        assert not kpts is None
+        assert kpts is not None
         assert kpt + 1 <= kpts
         # find last (eigenvalues)
         eigvalstart = None
@@ -1041,13 +1047,13 @@ class Aims(FileIOCalculator):
             if line.rfind('Preliminary charge convergence reached') > -1:
                 eigvalstart = n
                 break
-        assert not eigvalstart is None
+        assert eigvalstart is not None
         lines = lines[eigvalstart:]
         for n, line in enumerate(lines):
             if line.rfind('Writing Kohn-Sham eigenvalues') > -1:
                 eigvalstart = n
                 break
-        assert not eigvalstart is None
+        assert eigvalstart is not None
         text = lines[eigvalstart + 1:]  # remove first 1 line
         # find the requested k-point
         nbands = self.read_number_of_bands()

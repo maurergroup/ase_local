@@ -1,10 +1,8 @@
 """Helper functions for Flask WSGI-app."""
 import re
-from typing import List, Tuple, Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from flask import flash
-
-from ase.db.core import default_key_descriptions, Database
+from ase.db.core import Database, default_key_descriptions
 from ase.db.table import Table, all_columns
 
 
@@ -49,6 +47,7 @@ class Session:
         if what == 'query':
             self.query = project['handle_query_function'](args)
             self.nrows = None
+            self.page = 0
 
         elif what == 'sort':
             if x == self.sort:
@@ -117,24 +116,30 @@ class Session:
         pages.append((nxt, 'next'))
         return pages
 
-    def create_table(self, db: Database, uid_key: str) -> Table:
+    def create_table(self,
+                     db: Database,
+                     uid_key: str,
+                     keys: List[str]) -> Table:
         query = self.query
         if self.nrows is None:
             try:
                 self.nrows = db.count(query)
             except (ValueError, KeyError) as e:
                 error = ', '.join(['Bad query'] + list(e.args))
+                from flask import flash
                 flash(error)
                 query = 'id=0'  # this will return no rows
                 self.nrows = 0
 
         table = Table(db, uid_key)
         table.select(query, self.columns, self.sort,
-                     self.limit, offset=self.page * self.limit)
+                     self.limit, offset=self.page * self.limit,
+                     show_empty_columns=True)
         table.format()
+        assert self.columns is not None
         table.addcolumns = sorted(column for column in
-                                  all_columns + table.keys
-                                  if column not in table.columns)
+                                  all_columns + keys
+                                  if column not in self.columns)
         return table
 
 
