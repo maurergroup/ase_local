@@ -1037,7 +1037,7 @@ class Atoms:
 
     def __add__(self, other):
         atoms = self.copy()
-        atoms += other
+        atoms.extend(other)
         return atoms
 
     def extend(self, other):
