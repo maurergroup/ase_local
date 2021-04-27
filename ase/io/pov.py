@@ -279,7 +279,6 @@ class POVRAY:
         if 'colors' in kwargs.keys():
             colors = kwargs.pop('colors')
         else:
-<<<<<<< HEAD
             ini('Output_Alpha=off\n')
         ini('; if you adjust Height, and width, you must preserve the ratio\n')
         ini('; Width / Height = %f\n' % ratio)
@@ -313,45 +312,6 @@ class POVRAY:
         w('  look_at <%.2f,%.2f,%.2f>}' % tuple(self.look_at))
         for loc, rgb in self.point_lights:
             w('light_source {%s %s}\n' % (pa(loc), pc(rgb)))
-=======
-            colors = pvars.colors
-        diameters = pvars.d
-        image_height = pvars.h
-        image_width = pvars.w
-        positions = pvars.positions
-        constraints = pvars.constraints
-        return cls(cell=cell, cell_vertices=cell_vertices, colors=colors,
-                   constraints=constraints, diameters=diameters,
-                   image_height=image_height, image_width=image_width,
-                   positions=positions, **kwargs)
-
-    @classmethod
-    def from_atoms(cls, atoms, **kwargs):
-        return cls.from_plotting_variables(
-            PlottingVariables(atoms, scale=1.0), **kwargs)
-
-    def write_ini(self, path):
-        """Write ini file."""
-
-        ini_str = f"""\
-Input_File_Name={path.with_suffix('.pov').name}
-Output_to_File=True
-Output_File_Type=N
-Output_Alpha={'on' if self.transparent else 'off'}
-; if you adjust Height, and width, you must preserve the ratio
-; Width / Height = {self.canvas_width/self.canvas_height:f}
-Width={self.canvas_width}
-Height={self.canvas_height}
-Antialias=True
-Antialias_Threshold=0.1
-Display={self.display}
-Pause_When_Done={self.pause}
-Verbose=False
-"""
-        with open(path, 'w') as fd:
-            fd.write(ini_str)
-        return path
->>>>>>> 87fa25cffe1a465c95f9ce0bef645646e4833393
 
     def write_pov(self, path):
         """Write pov file."""
