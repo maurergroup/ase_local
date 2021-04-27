@@ -261,11 +261,6 @@ def write_aims(
             fd.write("\n")
     fix_cart = np.zeros([len(atoms), 3])
 
-    if atoms.get_velocities() is not None:
-        write_velocities = True
-        velocities = atoms.get_velocities()/v_unit
-    else:
-        write_velocities = False
     # else aims crashes anyways
     # better be more explicit
     # write_magmoms = np.any([a.magmom for a in atoms])
@@ -277,10 +272,10 @@ def write_aims(
             elif isinstance(constr, FixCartesian):
                 fix_cart[constr.a] = -constr.mask + 1
 
-    #if ghosts is None:
-    ghosts = np.zeros(len(atoms))
-    #else:
-        #assert len(ghosts) == len(atoms)
+    if ghosts is None:
+        ghosts = np.zeros(len(atoms))
+    else:
+        assert len(ghosts) == len(atoms)
     if friction_atoms is None:
         friction_atoms = []
 
@@ -304,12 +299,6 @@ def write_aims(
                 fd.write("%16.16f " % pos)
         fd.write(atom.symbol)
         fd.write('\n')
-        # writing velocities to file
-        if write_velocities:
-            fd.write('velocity')
-            for vel in velocities[i]:
-                fd.write('%16.8f ' % vel)
-            fd.write('\n')
         # (1) all coords are constrained:
         if fix_cart[i].all():
             fd.write("    constrain_relaxation .true.\n")
@@ -326,6 +315,14 @@ def write_aims(
             fd.write("calculate_friction .true.\n")
         if atom.magmom:
             fd.write("    initial_moment %16.6f\n" % atom.magmom)
+
+        # Write velocities if this is wanted
+        if velocities and atoms.get_velocities() is not None:
+            fd.write(
+                "    velocity {:.16f} {:.16f} {:.16f}\n".format(
+                    *atoms.get_velocities()[i] / v_unit
+                )
+            )
 
     if geo_constrain:
         for line in get_sym_block(atoms):
