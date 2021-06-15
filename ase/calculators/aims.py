@@ -307,13 +307,12 @@ class Aims(FileIOCalculator):
             if command:
                 warnings.warn('Caution! Argument "command" overwrites "run_command.')
             else:
-                command=run_command
+                command = run_command
 
         # this is the fallback to the default value for empty init
         if np.all([i is None for i in (command, aims_command, outfilename)]):
             # we go for the FileIOCalculator default way (env variable) with the former default as fallback
             command = os.environ.get('ASE_AIMS_COMMAND', Aims.__command_default)
-
 
         # filter the command and set the member variables "aims_command" and "outfilename"
         self.__init_command(command=command,
@@ -528,7 +527,6 @@ class Aims(FileIOCalculator):
                 output.write(s)
         output.write(lim + '\n')
 
-
         assert not ('kpts' in self.parameters and 'k_grid' in self.parameters)
         assert not ('smearing' in self.parameters and
                     'occupation_type' in self.parameters)
@@ -614,11 +612,11 @@ class Aims(FileIOCalculator):
 
         if ('sc_accuracy_stress' in self.parameters or
                 ('compute_numerical_stress' in self.parameters
-                and self.parameters['compute_numerical_stress']) or
+                 and self.parameters['compute_numerical_stress']) or
                 ('compute_analytical_stress' in self.parameters
-                and self.parameters['compute_analytical_stress']) or
+                 and self.parameters['compute_analytical_stress']) or
                 ('compute_heat_flux' in self.parameters
-                and self.parameters['compute_heat_flux'])):
+                 and self.parameters['compute_heat_flux'])):
             self.read_stress()
 
         if ('compute_heat_flux' in self.parameters
@@ -717,7 +715,7 @@ class Aims(FileIOCalculator):
 
     def set_radial_multiplier(self):
         assert isinstance(self.radmul, int)
-        newctrl = self.ctrlname +'.new'
+        newctrl = self.ctrlname + '.new'
         fin = open(self.ctrlname, 'r')
         fout = open(newctrl, 'w')
         newline = "    radial_multiplier   %i\n" % self.radmul
@@ -829,14 +827,14 @@ class Aims(FileIOCalculator):
 
     def read_stresses(self):
         """ Read stress per atom """
-        with open(self.out) as f:
-            next(l for l in f if
+        with open(self.out) as fd:
+            next(l for l in fd if
                  'Per atom stress (eV) used for heat flux calculation' in l)
             # scroll to boundary
-            next(l for l in f if '-------------' in l)
+            next(l for l in fd if '-------------' in l)
 
             stresses = []
-            for l in [next(f) for _ in range(len(self.atoms))]:
+            for l in [next(fd) for _ in range(len(self.atoms))]:
                 # Read stresses and rearrange from
                 # (xx, yy, zz, xy, xz, yz) to (xx, yy, zz, yz, xz, xy)
                 xx, yy, zz, xy, xz, yz = [float(d) for d in l.split()[2:8]]
