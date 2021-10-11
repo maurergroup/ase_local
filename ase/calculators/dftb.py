@@ -102,7 +102,6 @@ class Dftb(FileIOCalculator):
                 Hamiltonian_SlaterKosterFiles_Prefix=self.slako_dir,
                 Hamiltonian_SlaterKosterFiles_Separator='"-"',
                 Hamiltonian_SlaterKosterFiles_Suffix='".skf"',
-                Hamiltonian_MaxAngularMomentum_='')
                 Hamiltonian_MaxAngularMomentum_='',
                 Options_='',
                 Options_WriteResultsTag='Yes')
